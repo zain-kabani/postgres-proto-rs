@@ -39,7 +39,7 @@ pub enum StartupMessageType {
     GssEncReq,
 }
 
-pub trait StartupMessage {}
+pub trait StartupMessage: Message {}
 
 #[derive(Debug)]
 pub struct StartupParameters {
@@ -241,7 +241,7 @@ pub enum AuthType {
     SASLFinal = 12,
 }
 
-pub trait AuthenticationMessage {}
+pub trait AuthenticationMessage: Message {}
 
 pub struct AuthenticationOk {}
 
@@ -576,7 +576,7 @@ pub enum BackendMessageType {
     ReadyForQuery = 'Z' as isize,
 }
 
-pub trait BackendMessage {}
+pub trait BackendMessage: Message {}
 
 pub struct ReadyForQuery {
     pub tx_status: u8,
@@ -624,7 +624,7 @@ pub enum FrontendMessageType {
     Query = 'Q' as isize,
 }
 
-pub trait FrontendMessage {}
+pub trait FrontendMessage: Message {}
 
 pub struct Query {
     pub query_string: String,
@@ -635,6 +635,8 @@ impl Query {
         Self { query_string }
     }
 }
+
+impl FrontendMessage for Query {}
 
 impl Message for Query {
     type MessageType = FrontendMessageType;

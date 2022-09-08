@@ -82,7 +82,7 @@ async fn main() {
 
 async fn read_startup(
     stream: &mut OwnedReadHalf,
-) -> Result<Box<dyn Message<MessageType = StartupMessageType>>, Error> {
+) -> Result<Box<dyn StartupMessage<MessageType = StartupMessageType>>, Error> {
     let len = match stream.read_i32().await {
         Ok(len) => len,
         Err(_) => return Err(Error::SocketIOError),
@@ -136,7 +136,7 @@ async fn read_startup(
 
 async fn read_frontend_message(
     mut stream: OwnedReadHalf,
-) -> Result<Box<dyn Message<MessageType = FrontendMessageType>>, Error> {
+) -> Result<Box<dyn FrontendMessage<MessageType = FrontendMessageType>>, Error> {
     let code = match stream.read_u8().await {
         Ok(len) => len,
         Err(_) => return Err(Error::SocketIOError),
@@ -175,11 +175,11 @@ async fn read_frontend_message(
 
 async fn send_authentication_message(
     stream: &mut OwnedWriteHalf,
-    message: impl Message + AuthenticationMessage,
+    message: impl AuthenticationMessage,
 ) {
     stream.write(&message.get_bytes()).await.unwrap();
 }
 
-async fn send_backend_message(stream: &mut OwnedWriteHalf, message: impl Message + BackendMessage) {
+async fn send_backend_message(stream: &mut OwnedWriteHalf, message: impl BackendMessage) {
     stream.write(&message.get_bytes()).await.unwrap();
 }
