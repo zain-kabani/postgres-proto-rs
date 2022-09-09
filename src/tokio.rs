@@ -85,12 +85,6 @@ pub async fn read_frontend_message(
     }
 }
 
-pub async fn send_authentication_message(
-    stream: &mut OwnedWriteHalf,
-    message: impl AuthenticationMessage,
-) {
-    stream.write(&message.get_bytes()).await.unwrap();
-}
 
 pub async fn send_backend_message(stream: &mut OwnedWriteHalf, message: impl BackendMessage) {
     stream.write(&message.get_bytes()).await.unwrap();

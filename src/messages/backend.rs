@@ -9,6 +9,28 @@ use crate::messages::{Error, Message};
 
 #[derive(FromPrimitive)]
 pub enum BackendMessageType {
+    ParseComplete = '1' as isize,
+    BindComplete = '2' as isize,
+    CloseComplete = '3' as isize,
+    NotificationResponse = 'A' as isize,
+    CopyDone = 'c' as isize,
+    CommandComplete = 'C' as isize,
+    CopyData = 'd' as isize,
+    DataRow = 'D' as isize,
+    ErrorResponse = 'E' as isize,
+    CopyInResponse = 'G' as isize,
+    CopyOutResponse = 'H' as isize,
+    EmptyQueryResponse = 'I' as isize,
+    BackendKeyData = 'K' as isize,
+    NoData = 'n' as isize,
+    NoticeResponse = 'N' as isize,
+    Authentication = 'R' as isize,
+    PortalSuspended = 's' as isize,
+    ParameterStatus = 'S' as isize,
+    ParameterDescription = 't' as isize,
+    PowDescription = 'T' as isize,
+    FunctionCallResponse = 'V' as isize,
+    CopyBothResponse = 'W' as isize,
     ReadyForQuery = 'Z' as isize,
 }
 
@@ -34,7 +56,13 @@ impl Message for ReadyForQuery {
     }
 
     fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        let tx_status = bytes.get_u8();
+        if bytes.remaining() !=  mem::size_of::<u8>() + mem::size_of::<i32>() * 2 + mem::size_of::<u8>() {
+            return Err(Error::InvalidBytes);
+        }
+
+        let _code = bytes.get_u8();
+        let _len = bytes.get_i32();
+        let tx_status = bytes.get_u8(); // TODO: Add validation
         Ok(Self { tx_status })
     }
 
@@ -72,8 +100,6 @@ pub enum AuthType {
     SASLFinal = 12,
 }
 
-pub trait AuthenticationMessage: Message {}
-
 pub struct AuthenticationOk {}
 
 impl AuthenticationOk {
@@ -82,7 +108,7 @@ impl AuthenticationOk {
     }
 }
 
-impl AuthenticationMessage for AuthenticationOk {}
+impl BackendMessage for AuthenticationOk {}
 
 impl Message for AuthenticationOk {
     type MessageType = AuthType;
@@ -96,14 +122,14 @@ impl Message for AuthenticationOk {
     }
 
     fn get_bytes(&self) -> BytesMut {
-        let mut auth_ok = BytesMut::with_capacity(
+        let mut auth = BytesMut::with_capacity(
             mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>(),
         );
-        auth_ok.put_u8(b'R');
-        auth_ok.put_i32(8);
-        auth_ok.put_i32(0);
+        auth.put_u8(b'R');
+        auth.put_i32(8);
+        auth.put_i32(self.get_type() as i32);
 
-        return auth_ok;
+        return auth;
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -111,17 +137,15 @@ impl Message for AuthenticationOk {
     }
 }
 
-pub struct AuthenticationCleartextPassword {
-    pub bytes: BytesMut,
-}
+pub struct AuthenticationCleartextPassword {}
 
 impl AuthenticationCleartextPassword {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-impl AuthenticationMessage for AuthenticationCleartextPassword {}
+impl BackendMessage for AuthenticationCleartextPassword {}
 
 impl Message for AuthenticationCleartextPassword {
     type MessageType = AuthType;
@@ -130,12 +154,19 @@ impl Message for AuthenticationCleartextPassword {
         AuthType::CleartextPassword
     }
 
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self {})
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        let mut auth = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>(),
+        );
+        auth.put_u8(b'R');
+        auth.put_i32(8);
+        auth.put_i32(self.get_type() as i32);
+
+        return auth;
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -144,16 +175,16 @@ impl Message for AuthenticationCleartextPassword {
 }
 
 pub struct AuthenticationMD5Password {
-    pub bytes: BytesMut,
+    pub salt: [u8; 4],
 }
 
 impl AuthenticationMD5Password {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(salt: [u8; 4]) -> Self {
+        Self { salt }
     }
 }
 
-impl AuthenticationMessage for AuthenticationMD5Password {}
+impl BackendMessage for AuthenticationMD5Password {}
 
 impl Message for AuthenticationMD5Password {
     type MessageType = AuthType;
@@ -162,140 +193,34 @@ impl Message for AuthenticationMD5Password {
         AuthType::MD5Password
     }
 
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
+        if bytes.remaining() !=  mem::size_of::<u8>() + mem::size_of::<i32>() * 2 + mem::size_of::<u8>() * 4 {
+            return Err(Error::InvalidBytes);
+        }
+
+        let _code = bytes.get_u8();
+        let _len = bytes.get_i32();
+        let _type = bytes.get_i32();
+        let salt = [
+            bytes.get_u8(),
+            bytes.get_u8(),
+            bytes.get_u8(),
+            bytes.get_u8(),
+        ];
+        Ok(Self { salt })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
-    }
+        let mut auth = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() * 2 + mem::size_of::<u8>() * 4,
+        );
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
+        auth.put_u8(b'R');
+        auth.put_i32(12);
+        auth.put_i32(self.get_type() as i32);
+        auth.put_slice(&self.salt);
 
-pub struct AuthenticationSCMCreds {
-    pub bytes: BytesMut,
-}
-
-impl AuthenticationSCMCreds {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
-    }
-}
-
-impl AuthenticationMessage for AuthenticationSCMCreds {}
-
-impl Message for AuthenticationSCMCreds {
-    type MessageType = AuthType;
-
-    fn get_type(&self) -> Self::MessageType {
-        AuthType::SCMCreds
-    }
-
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
-    }
-
-    fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-pub struct AuthenticationGSS {
-    pub bytes: BytesMut,
-}
-
-impl AuthenticationGSS {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
-    }
-}
-
-impl AuthenticationMessage for AuthenticationGSS {}
-
-impl Message for AuthenticationGSS {
-    type MessageType = AuthType;
-
-    fn get_type(&self) -> Self::MessageType {
-        AuthType::GSS
-    }
-
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
-    }
-
-    fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-pub struct AuthenticationGSSCont {
-    pub bytes: BytesMut,
-}
-
-impl AuthenticationGSSCont {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
-    }
-}
-
-impl AuthenticationMessage for AuthenticationGSSCont {}
-
-impl Message for AuthenticationGSSCont {
-    type MessageType = AuthType;
-
-    fn get_type(&self) -> Self::MessageType {
-        AuthType::GSSCont
-    }
-
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
-    }
-
-    fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-pub struct AuthenticationSSPI {
-    pub bytes: BytesMut,
-}
-
-impl AuthenticationSSPI {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
-    }
-}
-
-impl AuthenticationMessage for AuthenticationSSPI {}
-
-impl Message for AuthenticationSSPI {
-    type MessageType = AuthType;
-
-    fn get_type(&self) -> Self::MessageType {
-        AuthType::SSPI
-    }
-
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
-    }
-
-    fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return auth;
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -313,7 +238,7 @@ impl AuthenticationSASL {
     }
 }
 
-impl AuthenticationMessage for AuthenticationSASL {}
+impl BackendMessage for AuthenticationSASL {}
 
 impl Message for AuthenticationSASL {
     type MessageType = AuthType;
@@ -345,7 +270,7 @@ impl AuthenticationSASLContinue {
     }
 }
 
-impl AuthenticationMessage for AuthenticationSASLContinue {}
+impl BackendMessage for AuthenticationSASLContinue {}
 
 impl Message for AuthenticationSASLContinue {
     type MessageType = AuthType;
@@ -377,7 +302,7 @@ impl AuthenticationSASLFinal {
     }
 }
 
-impl AuthenticationMessage for AuthenticationSASLFinal {}
+impl BackendMessage for AuthenticationSASLFinal {}
 
 impl Message for AuthenticationSASLFinal {
     type MessageType = AuthType;
