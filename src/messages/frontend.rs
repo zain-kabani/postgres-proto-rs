@@ -11,8 +11,6 @@ pub const SSL_REQUEST_CODE: i32 = 80877103;
 pub const CANCEL_REQUEST_CODE: i32 = 80877102;
 pub const GSS_ENC_REQ_CODE: i32 = 80877104;
 
-
-
 #[derive(Debug)]
 pub enum StartupMessageType {
     StartupParameters(StartupParameters),

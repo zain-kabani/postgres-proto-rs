@@ -34,6 +34,8 @@ pub enum BackendMessageType {
     PortalSuspended,
     ReadyForQuery(ReadyForQuery),
     RowDescription(RowDescription),
+    FunctionCallResponse(FunctionCallResponse),
+    CopyBothResponse(CopyBothResponse),
 }
 
 impl BackendMessageType {
@@ -67,6 +69,8 @@ impl BackendMessageType {
             Self::PortalSuspended => PortalSuspended::new().get_bytes(),
             Self::ReadyForQuery(ready_for_query) => ready_for_query.get_bytes(),
             Self::RowDescription(row_description) => row_description.get_bytes(),
+            Self::FunctionCallResponse(function_call_resp) => function_call_resp.get_bytes(),
+            Self::CopyBothResponse(copy_both_resp) => copy_both_resp.get_bytes(),
         }
     }
 
@@ -103,10 +107,9 @@ impl BackendMessageType {
                         let sasl_final = AuthenticationSASLFinal::new_from_bytes(message_bytes)?;
                         Ok(Self::AuthenticationSASLFinal(sasl_final))
                     }
-                    AUTH_CODE_SCM_CREDS
-                    | AUTH_CODE_GSS
-                    | AUTH_CODE_GSS_CONT
-                    | AUTH_CODE_SSPI => Err(Error::UnsupportedProtocol),
+                    AUTH_CODE_SCM_CREDS | AUTH_CODE_GSS | AUTH_CODE_GSS_CONT | AUTH_CODE_SSPI => {
+                        Err(Error::UnsupportedProtocol)
+                    }
                     _ => return Err(Error::InvalidProtocol),
                 }
             }
@@ -137,6 +140,45 @@ impl BackendMessageType {
             'Z' => {
                 let ready_for_query = ReadyForQuery::new_from_bytes(message_bytes)?;
                 Ok(Self::ReadyForQuery(ready_for_query))
+            }
+            '1' => Ok(Self::ParseComplete),
+            '2' => Ok(Self::BindComplete),
+            '3' => Ok(Self::CloseComplete),
+            'A' => {
+                let notification_response = NotificationResponse::new_from_bytes(message_bytes)?;
+                Ok(Self::NotificationResponse(notification_response))
+            }
+            'c' => Ok(Self::CopyDone),
+            'd' => {
+                let copy_data = CopyData::new_from_bytes(message_bytes)?;
+                Ok(Self::CopyData(copy_data))
+            }
+            'G' => {
+                let copy_in_response = CopyInResponse::new_from_bytes(message_bytes)?;
+                Ok(Self::CopyInResponse(copy_in_response))
+            }
+            'H' => {
+                let copy_out_response = CopyOutResponse::new_from_bytes(message_bytes)?;
+                Ok(Self::CopyOutResponse(copy_out_response))
+            }
+            'I' => Ok(Self::EmptyQueryResponse),
+            'n' => Ok(Self::NoData),
+            'N' => {
+                let notice_response = NoticeResponse::new_from_bytes(message_bytes)?;
+                Ok(Self::NoticeResponse(notice_response))
+            }
+            's' => Ok(Self::PortalSuspended),
+            't' => {
+                let parameter_description = ParameterDescription::new_from_bytes(message_bytes)?;
+                Ok(Self::ParameterDescription(parameter_description))
+            }
+            'V' => {
+                let function_call_response = FunctionCallResponse::new_from_bytes(message_bytes)?;
+                Ok(Self::FunctionCallResponse(function_call_response))
+            }
+            'W' => {
+                let copy_both_response = CopyBothResponse::new_from_bytes(message_bytes)?;
+                Ok(Self::CopyBothResponse(copy_both_response))
             }
 
             _ => return Err(Error::InvalidProtocol),
@@ -253,6 +295,52 @@ impl NotificationResponse {
 impl BackendMessage for NotificationResponse {}
 
 impl Message for NotificationResponse {
+    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        return self.bytes.clone();
+    }
+}
+
+#[derive(Debug)]
+pub struct FunctionCallResponse {
+    pub bytes: BytesMut,
+}
+
+impl FunctionCallResponse {
+    pub fn new(bytes: BytesMut) -> Self {
+        Self { bytes }
+    }
+}
+
+impl BackendMessage for FunctionCallResponse {}
+
+impl Message for FunctionCallResponse {
+    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        return self.bytes.clone();
+    }
+}
+
+#[derive(Debug)]
+pub struct CopyBothResponse {
+    pub bytes: BytesMut,
+}
+
+impl CopyBothResponse {
+    pub fn new(bytes: BytesMut) -> Self {
+        Self { bytes }
+    }
+}
+
+impl BackendMessage for CopyBothResponse {}
+
+impl Message for CopyBothResponse {
     fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
         Ok(Self { bytes })
     }
@@ -734,7 +822,6 @@ pub const AUTH_CODE_SSPI: i32 = 9;
 pub const AUTH_CODE_SASL: i32 = 10;
 pub const AUTH_CODE_SASL_CONTINUE: i32 = 11;
 pub const AUTH_CODE_SASL_FINAL: i32 = 12;
-
 
 #[derive(Debug)]
 pub struct AuthenticationOk {}
