@@ -1,6 +1,4 @@
 use bytes::{Buf, BufMut, BytesMut};
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use std::mem;
 
 use crate::messages::{Error, Message};
@@ -85,30 +83,30 @@ impl BackendMessageType {
                     None => return Err(Error::InvalidBytes),
                 };
 
-                match FromPrimitive::from_i32(auth_type) {
-                    Some(AuthType::Ok) => Ok(Self::AuthenticationOk),
-                    Some(AuthType::CleartextPassword) => Ok(Self::AuthenticationCleartextPassword),
-                    Some(AuthType::MD5Password) => {
+                match auth_type {
+                    AUTH_CODE_OK => Ok(Self::AuthenticationOk),
+                    AUTH_CODE_CLEARTEXT_PASSWORD => Ok(Self::AuthenticationCleartextPassword),
+                    AUTH_CODE_MD5_PASSWORD => {
                         let md5_password =
                             AuthenticationMD5Password::new_from_bytes(message_bytes)?;
                         Ok(Self::AuthenticationMd5Password(md5_password))
                     }
-                    Some(AuthType::SASL) => {
+                    AUTH_CODE_SASL => {
                         let sasl = AuthenticationSASL::new_from_bytes(message_bytes)?;
                         Ok(Self::AuthenticationSASL(sasl))
                     }
-                    Some(AuthType::SASLContinue) => {
+                    AUTH_CODE_SASL_CONTINUE => {
                         let sasl_cont = AuthenticationSASLContinue::new_from_bytes(message_bytes)?;
                         Ok(Self::AuthenticationSASLContinue(sasl_cont))
                     }
-                    Some(AuthType::SASLFinal) => {
+                    AUTH_CODE_SASL_FINAL => {
                         let sasl_final = AuthenticationSASLFinal::new_from_bytes(message_bytes)?;
                         Ok(Self::AuthenticationSASLFinal(sasl_final))
                     }
-                    Some(AuthType::SCMCreds)
-                    | Some(AuthType::GSS)
-                    | Some(AuthType::GSSCont)
-                    | Some(AuthType::SSPI) => Err(Error::UnsupportedProtocol),
+                    AUTH_CODE_SCM_CREDS
+                    | AUTH_CODE_GSS
+                    | AUTH_CODE_GSS_CONT
+                    | AUTH_CODE_SSPI => Err(Error::UnsupportedProtocol),
                     _ => return Err(Error::InvalidProtocol),
                 }
             }
@@ -725,19 +723,18 @@ impl Message for ReadyForQuery {
 // Authentication Response Messages
 
 // TODO: Fix this, need to make this sub thing for auth type backend message
-#[derive(FromPrimitive)]
-pub enum AuthType {
-    Ok = 0,
-    CleartextPassword = 3,
-    MD5Password = 5,
-    SCMCreds = 6,
-    GSS = 7,
-    GSSCont = 8,
-    SSPI = 9,
-    SASL = 10,
-    SASLContinue = 11,
-    SASLFinal = 12,
-}
+
+pub const AUTH_CODE_OK: i32 = 0;
+pub const AUTH_CODE_CLEARTEXT_PASSWORD: i32 = 3;
+pub const AUTH_CODE_MD5_PASSWORD: i32 = 5;
+pub const AUTH_CODE_SCM_CREDS: i32 = 6;
+pub const AUTH_CODE_GSS: i32 = 7;
+pub const AUTH_CODE_GSS_CONT: i32 = 8;
+pub const AUTH_CODE_SSPI: i32 = 9;
+pub const AUTH_CODE_SASL: i32 = 10;
+pub const AUTH_CODE_SASL_CONTINUE: i32 = 11;
+pub const AUTH_CODE_SASL_FINAL: i32 = 12;
+
 
 #[derive(Debug)]
 pub struct AuthenticationOk {}
@@ -765,7 +762,7 @@ impl Message for AuthenticationOk {
         );
         auth.put_u8(b'R');
         auth.put_i32(8);
-        auth.put_i32(AuthType::Ok as i32);
+        auth.put_i32(AUTH_CODE_OK);
 
         return auth;
     }
@@ -797,7 +794,7 @@ impl Message for AuthenticationCleartextPassword {
         );
         auth.put_u8(b'R');
         auth.put_i32(8);
-        auth.put_i32(AuthType::CleartextPassword as i32);
+        auth.put_i32(AUTH_CODE_CLEARTEXT_PASSWORD);
 
         return auth;
     }
@@ -841,7 +838,7 @@ impl Message for AuthenticationMD5Password {
 
         auth.put_u8(b'R');
         auth.put_i32(12);
-        auth.put_i32(AuthType::MD5Password as i32);
+        auth.put_i32(AUTH_CODE_MD5_PASSWORD);
         auth.put_slice(&self.salt);
 
         return auth;

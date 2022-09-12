@@ -1,6 +1,4 @@
 use bytes::{Buf, BufMut, BytesMut};
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use std::{collections::HashMap, io::BufRead, mem};
 
 use crate::messages::{Error, Message};
@@ -8,13 +6,12 @@ use crate::messages::{Error, Message};
 //----------------------------------------------------------------
 // Startup Messages
 
-#[derive(FromPrimitive)]
-pub enum StartupMessageCodes {
-    ProtocolVersion = 196608,
-    SSLRequest = 80877103,
-    CancelRequest = 80877102,
-    GssEncReq = 80877104,
-}
+pub const PROTOCOL_VERSION_CODE: i32 = 196608;
+pub const SSL_REQUEST_CODE: i32 = 80877103;
+pub const CANCEL_REQUEST_CODE: i32 = 80877102;
+pub const GSS_ENC_REQ_CODE: i32 = 80877104;
+
+
 
 #[derive(Debug)]
 pub enum StartupMessageType {
@@ -43,17 +40,17 @@ impl StartupMessageType {
     }
 
     pub fn new_from_bytes(code: i32, message_bytes: BytesMut) -> Result<Self, Error> {
-        match FromPrimitive::from_i32(code) {
-            Some(StartupMessageCodes::ProtocolVersion) => {
+        match code {
+            PROTOCOL_VERSION_CODE => {
                 let startup_message = StartupParameters::new_from_bytes(message_bytes)?;
                 Ok(StartupMessageType::StartupParameters(startup_message))
             }
-            Some(StartupMessageCodes::SSLRequest) => Ok(StartupMessageType::SSLRequest),
-            Some(StartupMessageCodes::CancelRequest) => {
+            SSL_REQUEST_CODE => Ok(StartupMessageType::SSLRequest),
+            CANCEL_REQUEST_CODE => {
                 let cancel_request = CancelRequest::new_from_bytes(message_bytes)?;
                 Ok(StartupMessageType::CancelRequest(cancel_request))
             }
-            Some(StartupMessageCodes::GssEncReq) => Ok(StartupMessageType::GssEncReq),
+            GSS_ENC_REQ_CODE => Ok(StartupMessageType::GssEncReq),
             _ => return Err(Error::InvalidProtocol),
         }
     }
@@ -74,7 +71,7 @@ impl StartupParameters {
         };
 
         Ok(Self {
-            protocol_version: 196608,
+            protocol_version: PROTOCOL_VERSION_CODE,
             parameters,
         })
     }
@@ -153,7 +150,7 @@ impl Message for SSLRequest {
         let mut data_bytes = BytesMut::with_capacity(mem::size_of::<i32>() + mem::size_of::<i32>());
 
         data_bytes.put_i32(8);
-        data_bytes.put_i32(80877103);
+        data_bytes.put_i32(SSL_REQUEST_CODE);
 
         return data_bytes;
     }
@@ -197,7 +194,7 @@ impl Message for CancelRequest {
         let mut data_bytes = BytesMut::with_capacity(mem::size_of::<i32>() * 4);
 
         data_bytes.put_i32(16);
-        data_bytes.put_i32(80877102);
+        data_bytes.put_i32(CANCEL_REQUEST_CODE);
         data_bytes.put_i32(self.process_id);
         data_bytes.put_i32(self.secret_key);
 
@@ -225,7 +222,7 @@ impl Message for GssEncReq {
         let mut data_bytes = BytesMut::with_capacity(mem::size_of::<i32>() + mem::size_of::<i32>());
 
         data_bytes.put_i32(8);
-        data_bytes.put_i32(80877104);
+        data_bytes.put_i32(GSS_ENC_REQ_CODE);
 
         return data_bytes;
     }
@@ -252,19 +249,19 @@ pub enum FrontendMessageType {
 impl FrontendMessageType {
     pub fn get_bytes(&self) -> BytesMut {
         match self {
-            FrontendMessageType::Query(query) => query.get_bytes(),
-            FrontendMessageType::Bind(bind) => bind.get_bytes(),
-            FrontendMessageType::Close(close) => close.get_bytes(),
-            FrontendMessageType::Describe(describe) => describe.get_bytes(),
-            FrontendMessageType::Execute(execute) => execute.get_bytes(),
-            FrontendMessageType::FunctionCall(function_call) => function_call.get_bytes(),
-            FrontendMessageType::CopyFail(copy_fail) => copy_fail.get_bytes(),
-            FrontendMessageType::CopyData(copy_data) => copy_data.get_bytes(),
-            FrontendMessageType::CopyDone(copy_done) => copy_done.get_bytes(),
-            FrontendMessageType::Flush(flush) => flush.get_bytes(),
-            FrontendMessageType::Parse(parse) => parse.get_bytes(),
-            FrontendMessageType::Sync(sync) => sync.get_bytes(),
-            FrontendMessageType::Terminate(terminate) => terminate.get_bytes(),
+            Self::Query(query) => query.get_bytes(),
+            Self::Bind(bind) => bind.get_bytes(),
+            Self::Close(close) => close.get_bytes(),
+            Self::Describe(describe) => describe.get_bytes(),
+            Self::Execute(execute) => execute.get_bytes(),
+            Self::FunctionCall(function_call) => function_call.get_bytes(),
+            Self::CopyFail(copy_fail) => copy_fail.get_bytes(),
+            Self::CopyData(copy_data) => copy_data.get_bytes(),
+            Self::CopyDone(copy_done) => copy_done.get_bytes(),
+            Self::Flush(flush) => flush.get_bytes(),
+            Self::Parse(parse) => parse.get_bytes(),
+            Self::Sync(sync) => sync.get_bytes(),
+            Self::Terminate(terminate) => terminate.get_bytes(),
         }
     }
 
