@@ -37,7 +37,10 @@ impl Frontend {
     }
 }
 
-pub async fn read_startup(stream: &mut OwnedReadHalf) -> Result<StartupMessageType, Error> {
+pub async fn read_startup<S>(stream: &mut S) -> Result<StartupMessageType, Error>
+where
+    S: tokio::io::AsyncRead + std::marker::Unpin,
+{
     let len = match stream.read_i32().await {
         Ok(len) => len,
         Err(_) => return Err(Error::SocketIOError),
@@ -70,13 +73,23 @@ pub async fn read_startup(stream: &mut OwnedReadHalf) -> Result<StartupMessageTy
     StartupMessageType::new_from_bytes(code, bytes_mut)
 }
 
-pub async fn send_startup_message(stream: &mut OwnedWriteHalf, message: StartupMessageType) {
-    stream.write(&message.get_bytes()).await.unwrap();
+pub async fn send_startup_message<S>(
+    stream: &mut S,
+    message: &StartupMessageType,
+) -> Result<(), std::io::Error>
+where
+    S: tokio::io::AsyncWrite + std::marker::Unpin,
+{
+    match stream.write(&message.get_bytes()).await {
+        Ok(_) => Ok(()),
+        Err(err) => return Err(err),
+    }
 }
 
-pub async fn read_frontend_message(
-    stream: &mut OwnedReadHalf,
-) -> Result<FrontendMessageType, Error> {
+pub async fn read_frontend_message<S>(stream: &mut S) -> Result<FrontendMessageType, Error>
+where
+    S: tokio::io::AsyncRead + std::marker::Unpin,
+{
     let (msg_type, message_bytes) = read_message_bytes(stream).await?;
 
     println!(
@@ -87,11 +100,23 @@ pub async fn read_frontend_message(
     FrontendMessageType::new_from_bytes(msg_type, message_bytes)
 }
 
-pub async fn send_frontend_message(stream: &mut OwnedWriteHalf, message: FrontendMessageType) {
-    stream.write(&message.get_bytes()).await.unwrap();
+pub async fn send_frontend_message<S>(
+    stream: &mut S,
+    message: &FrontendMessageType,
+) -> Result<(), std::io::Error>
+where
+    S: tokio::io::AsyncWrite + std::marker::Unpin,
+{
+    match stream.write(&message.get_bytes()).await {
+        Ok(_) => Ok(()),
+        Err(err) => return Err(err),
+    }
 }
 
-pub async fn read_backend_message(stream: &mut OwnedReadHalf) -> Result<BackendMessageType, Error> {
+pub async fn read_backend_message<S>(stream: &mut S) -> Result<BackendMessageType, Error>
+where
+    S: tokio::io::AsyncRead + std::marker::Unpin,
+{
     let (msg_type, message_bytes) = read_message_bytes(stream).await?;
 
     println!(
@@ -103,11 +128,23 @@ pub async fn read_backend_message(stream: &mut OwnedReadHalf) -> Result<BackendM
     BackendMessageType::new_from_bytes(msg_type, message_bytes)
 }
 
-pub async fn send_backend_message(stream: &mut OwnedWriteHalf, message: BackendMessageType) {
-    stream.write(&message.get_bytes()).await.unwrap();
+pub async fn send_backend_message<S>(
+    stream: &mut S,
+    message: &BackendMessageType,
+) -> Result<(), std::io::Error>
+where
+    S: tokio::io::AsyncWrite + std::marker::Unpin,
+{
+    match stream.write(&message.get_bytes()).await {
+        Ok(_) => Ok(()),
+        Err(err) => Err(err),
+    }
 }
 
-pub async fn read_message_bytes(stream: &mut OwnedReadHalf) -> Result<(u8, BytesMut), Error> {
+pub async fn read_message_bytes<S>(stream: &mut S) -> Result<(u8, BytesMut), Error>
+where
+    S: tokio::io::AsyncRead + std::marker::Unpin,
+{
     let msg_type = match stream.read_u8().await {
         Ok(msg_type) => msg_type,
         Err(_) => return Err(Error::SocketIOError),

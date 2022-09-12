@@ -1,17 +1,65 @@
+use std::collections::HashMap;
 
-use postgres_proto_rs::{tokio::*};
+use postgres_proto_rs::tokio::*;
+
 use postgres_proto_rs::messages::{backend::*, frontend::*};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 
+async fn create_backend() -> Backend {
+    let stream = match TcpStream::connect(&format!("{}:{}", "localhost", 5432)).await {
+        Ok(stream) => stream,
+        Err(err) => {
+            panic!("Could not connect to server: {}", err);
+        }
+    };
 
+    let (mut read_stream, mut write_stream) = stream.into_split();
+
+    let startup_params = StartupParameters::new(HashMap::from([
+        ("user".to_string(), "postgres".to_string()),
+        ("database".to_string(), "postgres".to_string()),
+        ("client_encoding".to_string(), "UTF8".to_string()),
+        ("application_name".to_string(), "psql".to_string()),
+    ]))
+    .unwrap();
+
+    send_startup_message(
+        &mut write_stream,
+        &StartupMessageType::StartupParameters(startup_params),
+    )
+    .await
+    .unwrap();
+
+    loop {
+        let message = match read_backend_message(&mut read_stream).await {
+            Ok(message) => message,
+            Err(err) => {
+                panic!("Could not read message: {:?}", err);
+            }
+        };
+
+        match message {
+            BackendMessageType::ReadyForQuery(_) => break,
+            _ => {}
+        };
+    }
+
+    Backend::new(read_stream, write_stream)
+}
+
+async fn create_frontend(stream: TcpStream) -> Frontend {
+    let (read_stream, write_stream) = stream.into_split();
+
+    Frontend::new(read_stream, write_stream)
+}
 
 #[tokio::main()]
 async fn main() {
-    println!("HELLO");
+    let mut backend = create_backend().await;
 
     let addr = format!("{}:{}", "localhost", "6432");
 
-    let listener = match TcpListener::bind(&addr).await {
+    let client_listener = match TcpListener::bind(&addr).await {
         Ok(sock) => sock,
         Err(err) => {
             println!("Listener socket error: {:?}", err);
@@ -19,45 +67,47 @@ async fn main() {
         }
     };
 
+    let (socket, _) = client_listener.accept().await.unwrap();
+
+    let mut frontend = create_frontend(socket).await;
+
+    let _startup_message = read_startup(&mut frontend.read_stream).await.unwrap();
+
+    send_backend_message(
+        &mut frontend.write_stream,
+        &BackendMessageType::AuthenticationOk,
+    )
+    .await
+    .unwrap();
+    send_backend_message(
+        &mut frontend.write_stream,
+        &BackendMessageType::ReadyForQuery(ReadyForQuery::new(b'I')),
+    )
+    .await
+    .unwrap();
+
     loop {
-        let (socket, _) = listener.accept().await.unwrap();
+        let message = read_frontend_message(&mut frontend.read_stream)
+            .await
+            .unwrap();
 
-        let (mut read_stream, mut write_stream) = socket.into_split();
+        send_frontend_message(&mut backend.write_stream, &message)
+            .await
+            .unwrap();
 
-        let res = read_startup(&mut read_stream).await.unwrap();
+        loop {
+            let message = read_backend_message(&mut backend.read_stream)
+                .await
+                .unwrap();
+            println!("message: {:?}", message);
+            send_backend_message(&mut frontend.write_stream, &message)
+                .await
+                .unwrap();
 
-        match res.get_type() {
-            StartupMessageType::StartupParameters => {
-                println!("Got startup parameters");
-
-                let startup_params = res.as_any().downcast_ref::<StartupParameters>().unwrap();
-                println!("params {:?}", startup_params.parameters);
-            }
-            _ => {}
-        }
-
-        send_authentication_message(&mut write_stream, AuthenticationOk::new()).await;
-
-        send_backend_message(&mut write_stream, ReadyForQuery::new(b'Z')).await;
-
-        let res = read_frontend_message(&mut read_stream).await.unwrap();
-
-        match res.get_type() {
-            FrontendMessageType::Query => {
-                let query = res.as_any().downcast_ref::<Query>().unwrap();
-                println!("Got query {:?}", query.query_string);
-            }
-        }
-        send_backend_message(&mut write_stream, ReadyForQuery::new(b'Z')).await;
-
-
-        let res = read_frontend_message(&mut read_stream).await.unwrap();
-
-        match res.get_type() {
-            FrontendMessageType::Query => {
-                let query = res.as_any().downcast_ref::<Query>().unwrap();
-                println!("Got query {:?}", query.query_string);
-            }
+            match message {
+                BackendMessageType::ReadyForQuery(_) => break,
+                _ => {}
+            };
         }
     }
 }

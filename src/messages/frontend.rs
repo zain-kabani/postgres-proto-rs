@@ -115,7 +115,6 @@ impl Message for StartupParameters {
         let mut data_bytes = BytesMut::new();
 
         data_bytes.put_i32(self.protocol_version);
-        data_bytes.put_u8(b'\0');
 
         for (key, value) in &self.parameters {
             data_bytes.put(key.as_bytes());
@@ -127,10 +126,8 @@ impl Message for StartupParameters {
 
         let mut final_bytes = BytesMut::with_capacity(data_bytes.len() + mem::size_of::<i32>());
 
-        final_bytes.put_i32(data_bytes.len() as i32);
+        final_bytes.put_i32(data_bytes.len() as i32 + mem::size_of::<i32>() as i32);
         final_bytes.put(data_bytes.freeze());
-
-        println!("final_bytes: {:?}", final_bytes);
 
         return final_bytes;
     }
@@ -238,12 +235,36 @@ impl Message for GssEncReq {
 // Frontend Messages
 pub enum FrontendMessageType {
     Query(Query),
+    Bind(Bind),
+    Close(Close),
+    Describe(Describe),
+    Execute(Execute),
+    FunctionCall(FunctionCall),
+    CopyFail(CopyFail),
+    CopyData(CopyData),
+    CopyDone(CopyDone), // empty
+    Flush(Flush),       // empty
+    Parse(Parse),
+    Sync(Sync),           // empty
+    Terminate(Terminate), // empty
 }
 
 impl FrontendMessageType {
     pub fn get_bytes(&self) -> BytesMut {
         match self {
             FrontendMessageType::Query(query) => query.get_bytes(),
+            FrontendMessageType::Bind(bind) => bind.get_bytes(),
+            FrontendMessageType::Close(close) => close.get_bytes(),
+            FrontendMessageType::Describe(describe) => describe.get_bytes(),
+            FrontendMessageType::Execute(execute) => execute.get_bytes(),
+            FrontendMessageType::FunctionCall(function_call) => function_call.get_bytes(),
+            FrontendMessageType::CopyFail(copy_fail) => copy_fail.get_bytes(),
+            FrontendMessageType::CopyData(copy_data) => copy_data.get_bytes(),
+            FrontendMessageType::CopyDone(copy_done) => copy_done.get_bytes(),
+            FrontendMessageType::Flush(flush) => flush.get_bytes(),
+            FrontendMessageType::Parse(parse) => parse.get_bytes(),
+            FrontendMessageType::Sync(sync) => sync.get_bytes(),
+            FrontendMessageType::Terminate(terminate) => terminate.get_bytes(),
         }
     }
 
@@ -253,12 +274,324 @@ impl FrontendMessageType {
                 let query = Query::new_from_bytes(message_bytes)?;
                 Ok(Self::Query(query))
             }
+            'B' => {
+                let bind = Bind::new_from_bytes(message_bytes)?;
+                Ok(Self::Bind(bind))
+            }
+            'C' => {
+                let close = Close::new_from_bytes(message_bytes)?;
+                Ok(Self::Close(close))
+            }
+            'D' => {
+                let describe = Describe::new_from_bytes(message_bytes)?;
+                Ok(Self::Describe(describe))
+            }
+            'E' => {
+                let execute = Execute::new_from_bytes(message_bytes)?;
+                Ok(Self::Execute(execute))
+            }
+            'F' => {
+                let function_call = FunctionCall::new_from_bytes(message_bytes)?;
+                Ok(Self::FunctionCall(function_call))
+            }
+            'f' => {
+                let copy_fail = CopyFail::new_from_bytes(message_bytes)?;
+                Ok(Self::CopyFail(copy_fail))
+            }
+            'd' => {
+                let copy_data = CopyData::new_from_bytes(message_bytes)?;
+                Ok(Self::CopyData(copy_data))
+            }
+            'c' => {
+                let copy_done = CopyDone::new_from_bytes(message_bytes)?;
+                Ok(Self::CopyDone(copy_done))
+            }
+            'H' => {
+                let flush = Flush::new_from_bytes(message_bytes)?;
+                Ok(Self::Flush(flush))
+            }
+            'P' => {
+                let parse = Parse::new_from_bytes(message_bytes)?;
+                Ok(Self::Parse(parse))
+            }
+            'S' => {
+                let sync = Sync::new_from_bytes(message_bytes)?;
+                Ok(Self::Sync(sync))
+            }
+            'X' => {
+                let terminate = Terminate::new_from_bytes(message_bytes)?;
+                Ok(Self::Terminate(terminate))
+            }
             _ => Err(Error::InvalidProtocol),
         }
     }
 }
 
 pub trait FrontendMessage: Message {}
+
+pub struct Terminate {
+    pub message_bytes: BytesMut,
+}
+
+impl Terminate {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for Terminate {}
+
+impl Message for Terminate {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct Sync {
+    pub message_bytes: BytesMut,
+}
+
+impl Sync {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for Sync {}
+
+impl Message for Sync {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct Parse {
+    pub message_bytes: BytesMut,
+}
+
+impl Parse {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for Parse {}
+
+impl Message for Parse {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct Flush {
+    pub message_bytes: BytesMut,
+}
+
+impl Flush {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for Flush {}
+
+impl Message for Flush {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct CopyDone {
+    pub message_bytes: BytesMut,
+}
+
+impl CopyDone {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for CopyDone {}
+
+impl Message for CopyDone {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct CopyData {
+    pub message_bytes: BytesMut,
+}
+
+impl CopyData {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for CopyData {}
+
+impl Message for CopyData {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct CopyFail {
+    pub message_bytes: BytesMut,
+}
+
+impl CopyFail {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for CopyFail {}
+
+impl Message for CopyFail {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct FunctionCall {
+    pub message_bytes: BytesMut,
+}
+
+impl FunctionCall {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for FunctionCall {}
+
+impl Message for FunctionCall {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct Execute {
+    pub message_bytes: BytesMut,
+}
+
+impl Execute {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for Execute {}
+
+impl Message for Execute {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct Describe {
+    pub message_bytes: BytesMut,
+}
+
+impl Describe {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for Describe {}
+
+impl Message for Describe {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct Close {
+    pub message_bytes: BytesMut,
+}
+
+impl Close {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for Close {}
+
+impl Message for Close {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
+
+pub struct Bind {
+    pub message_bytes: BytesMut,
+}
+
+impl Bind {
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
+    }
+}
+
+impl FrontendMessage for Bind {}
+
+impl Message for Bind {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
+    }
+
+    fn get_bytes(&self) -> BytesMut {
+        self.message_bytes.clone()
+    }
+}
 
 pub struct Query {
     pub query_string: String,
@@ -285,11 +618,12 @@ impl Message for Query {
             mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>(),
         );
 
-        let msg_len = (self.query_string.len() + mem::size_of::<i32>()) as i32;
+        let msg_len = (self.query_string.len() + 1 + mem::size_of::<i32>()) as i32;
 
         data_bytes.put_u8(b'Q');
         data_bytes.put_i32(msg_len);
         data_bytes.put(&self.query_string.as_bytes()[..]);
+        data_bytes.put_u8(0);
 
         return data_bytes;
     }

@@ -116,6 +116,26 @@ impl BackendMessageType {
                 let message = ErrorResponse::new_from_bytes(message_bytes)?;
                 Ok(Self::ErrorResponse(message))
             }
+            'S' => {
+                let message = ParameterStatus::new_from_bytes(message_bytes)?;
+                Ok(Self::ParameterStatus(message))
+            }
+            'K' => {
+                let message = BackendKeyData::new_from_bytes(message_bytes)?;
+                Ok(Self::BackendKeyData(message))
+            }
+            'T' => {
+                let message = RowDescription::new_from_bytes(message_bytes)?;
+                Ok(Self::RowDescription(message))
+            }
+            'D' => {
+                let message = DataRow::new_from_bytes(message_bytes)?;
+                Ok(Self::DataRow(message))
+            }
+            'C' => {
+                let message = CommandComplete::new_from_bytes(message_bytes)?;
+                Ok(Self::CommandComplete(message))
+            }
             'Z' => {
                 let ready_for_query = ReadyForQuery::new_from_bytes(message_bytes)?;
                 Ok(Self::ReadyForQuery(ready_for_query))
@@ -276,24 +296,40 @@ impl Message for CopyDone {
 
 #[derive(Debug)]
 pub struct CommandComplete {
-    pub bytes: BytesMut,
+    pub command_tag: String,
 }
 
 impl CommandComplete {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(command_tag: String) -> Self {
+        Self { command_tag }
     }
 }
 
 impl BackendMessage for CommandComplete {}
 
 impl Message for CommandComplete {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
+        let _code = bytes.get_u8();
+        let len = bytes.get_i32() as usize;
+
+        let command_tag = String::from_utf8_lossy(&bytes[..len - 5]).to_string();
+
+        Ok(Self { command_tag })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        let mut message_bytes = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>(),
+        );
+
+        let msg_len = (self.command_tag.len() + 1 + mem::size_of::<i32>()) as i32;
+
+        message_bytes.put_u8(b'C');
+        message_bytes.put_i32(msg_len);
+        message_bytes.put(&self.command_tag.as_bytes()[..]);
+        message_bytes.put_u8(0);
+
+        return message_bytes;
     }
 }
 
@@ -663,7 +699,7 @@ impl BackendMessage for ReadyForQuery {}
 
 impl Message for ReadyForQuery {
     fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() * 2 + mem::size_of::<u8>() {
+        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>() {
             return Err(Error::InvalidBytes);
         }
 

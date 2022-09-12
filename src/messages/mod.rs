@@ -3,7 +3,7 @@ use bytes::BytesMut;
 use crate::errors::Error;
 
 pub trait Message {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error>
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error>
     where
         Self: Sized;
 
