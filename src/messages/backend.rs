@@ -200,8 +200,8 @@ impl ParseComplete {
 impl BackendMessage for ParseComplete {}
 
 impl Message for ParseComplete {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
             return Err(Error::InvalidBytes);
         }
 
@@ -231,8 +231,8 @@ impl BindComplete {
 impl BackendMessage for BindComplete {}
 
 impl Message for BindComplete {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
             return Err(Error::InvalidBytes);
         }
 
@@ -262,8 +262,8 @@ impl CloseComplete {
 impl BackendMessage for CloseComplete {}
 
 impl Message for CloseComplete {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
             return Err(Error::InvalidBytes);
         }
 
@@ -283,70 +283,70 @@ impl Message for CloseComplete {
 
 #[derive(Debug)]
 pub struct NotificationResponse {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl NotificationResponse {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for NotificationResponse {}
 
 impl Message for NotificationResponse {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct FunctionCallResponse {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl FunctionCallResponse {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for FunctionCallResponse {}
 
 impl Message for FunctionCallResponse {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct CopyBothResponse {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl CopyBothResponse {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for CopyBothResponse {}
 
 impl Message for CopyBothResponse {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
@@ -362,8 +362,8 @@ impl CopyDone {
 impl BackendMessage for CopyDone {}
 
 impl Message for CopyDone {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
             return Err(Error::InvalidBytes);
         }
 
@@ -394,11 +394,11 @@ impl CommandComplete {
 impl BackendMessage for CommandComplete {}
 
 impl Message for CommandComplete {
-    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        let _code = bytes.get_u8();
-        let len = bytes.get_i32() as usize;
+    fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
+        let _code = message_bytes.get_u8();
+        let len = message_bytes.get_i32() as usize;
 
-        let command_tag = String::from_utf8_lossy(&bytes[..len - 5]).to_string();
+        let command_tag = String::from_utf8_lossy(&message_bytes[..len - 5]).to_string();
 
         Ok(Self { command_tag })
     }
@@ -421,116 +421,116 @@ impl Message for CommandComplete {
 
 #[derive(Debug)]
 pub struct CopyData {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl CopyData {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for CopyData {}
 
 impl Message for CopyData {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct DataRow {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl DataRow {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for DataRow {}
 
 impl Message for DataRow {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct ErrorResponse {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl ErrorResponse {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for ErrorResponse {}
 
 impl Message for ErrorResponse {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct CopyInResponse {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl CopyInResponse {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for CopyInResponse {}
 
 impl Message for CopyInResponse {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct CopyOutResponse {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl CopyOutResponse {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for CopyOutResponse {}
 
 impl Message for CopyOutResponse {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
@@ -546,8 +546,8 @@ impl EmptyQueryResponse {
 impl BackendMessage for EmptyQueryResponse {}
 
 impl Message for EmptyQueryResponse {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
             return Err(Error::InvalidBytes);
         }
 
@@ -583,8 +583,8 @@ impl BackendKeyData {
 impl BackendMessage for BackendKeyData {}
 
 impl Message for BackendKeyData {
-    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len()
+    fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len()
             != mem::size_of::<u8>()
                 + mem::size_of::<i32>()
                 + mem::size_of::<i32>()
@@ -593,10 +593,10 @@ impl Message for BackendKeyData {
             return Err(Error::InvalidBytes);
         }
 
-        let _code = bytes.get_u8();
-        let _len = bytes.get_i32();
-        let process_id = bytes.get_i32();
-        let secret_key = bytes.get_i32();
+        let _code = message_bytes.get_u8();
+        let _len = message_bytes.get_i32();
+        let process_id = message_bytes.get_i32();
+        let secret_key = message_bytes.get_i32();
 
         Ok(Self {
             process_id,
@@ -633,8 +633,8 @@ impl NoData {
 impl BackendMessage for NoData {}
 
 impl Message for NoData {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() {
             return Err(Error::InvalidBytes);
         }
 
@@ -654,93 +654,93 @@ impl Message for NoData {
 
 #[derive(Debug)]
 pub struct NoticeResponse {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl NoticeResponse {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for NoticeResponse {}
 
 impl Message for NoticeResponse {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct ParameterDescription {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl ParameterDescription {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for ParameterDescription {}
 
 impl Message for ParameterDescription {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct ParameterStatus {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl ParameterStatus {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for ParameterStatus {}
 
 impl Message for ParameterStatus {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct RowDescription {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl RowDescription {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for RowDescription {}
 
 impl Message for RowDescription {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
@@ -784,14 +784,14 @@ impl ReadyForQuery {
 impl BackendMessage for ReadyForQuery {}
 
 impl Message for ReadyForQuery {
-    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>() {
+    fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>() {
             return Err(Error::InvalidBytes);
         }
 
-        let _code = bytes.get_u8();
-        let _len = bytes.get_i32();
-        let tx_status = bytes.get_u8(); // TODO: Add validation
+        let _code = message_bytes.get_u8();
+        let _len = message_bytes.get_i32();
+        let tx_status = message_bytes.get_u8(); // TODO: Add validation
         Ok(Self { tx_status })
     }
 
@@ -835,8 +835,8 @@ impl AuthenticationOk {
 impl BackendMessage for AuthenticationOk {}
 
 impl Message for AuthenticationOk {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>() {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>() {
             return Err(Error::InvalidBytes);
         }
 
@@ -867,8 +867,8 @@ impl AuthenticationCleartextPassword {
 impl BackendMessage for AuthenticationCleartextPassword {}
 
 impl Message for AuthenticationCleartextPassword {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>() {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>() {
             return Err(Error::InvalidBytes);
         }
 
@@ -901,19 +901,19 @@ impl AuthenticationMD5Password {
 impl BackendMessage for AuthenticationMD5Password {}
 
 impl Message for AuthenticationMD5Password {
-    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len()
+    fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len()
             != mem::size_of::<u8>() + mem::size_of::<i32>() * 2 + mem::size_of::<u8>() * 4
         {
             return Err(Error::InvalidBytes);
         }
 
-        let _code = bytes.get_u8();
-        let _len = bytes.get_i32();
-        let _type = bytes.get_i32();
+        let _code = message_bytes.get_u8();
+        let _len = message_bytes.get_i32();
+        let _type = message_bytes.get_i32();
 
         // These unwraps are safe because of validation above
-        let salt: [u8; 4] = bytes.get(0..4).unwrap().try_into().unwrap();
+        let salt: [u8; 4] = message_bytes.get(0..4).unwrap().try_into().unwrap();
 
         Ok(Self { salt })
     }
@@ -934,69 +934,69 @@ impl Message for AuthenticationMD5Password {
 
 #[derive(Debug)]
 pub struct AuthenticationSASL {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl AuthenticationSASL {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for AuthenticationSASL {}
 
 impl Message for AuthenticationSASL {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct AuthenticationSASLContinue {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl AuthenticationSASLContinue {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for AuthenticationSASLContinue {}
 
 impl Message for AuthenticationSASLContinue {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }
 
 #[derive(Debug)]
 pub struct AuthenticationSASLFinal {
-    pub bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl AuthenticationSASLFinal {
-    pub fn new(bytes: BytesMut) -> Self {
-        Self { bytes }
+    pub fn new(message_bytes: BytesMut) -> Self {
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for AuthenticationSASLFinal {}
 
 impl Message for AuthenticationSASLFinal {
-    fn new_from_bytes(bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self { bytes })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> BytesMut {
-        return self.bytes.clone();
+        return self.message_bytes.clone();
     }
 }

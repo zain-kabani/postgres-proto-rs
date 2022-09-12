@@ -327,7 +327,7 @@ pub trait FrontendMessage: Message {}
 
 #[derive(Debug)]
 pub struct Terminate {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl Terminate {
@@ -350,7 +350,7 @@ impl Message for Terminate {
 
 #[derive(Debug)]
 pub struct Sync {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl Sync {
@@ -373,7 +373,7 @@ impl Message for Sync {
 
 #[derive(Debug)]
 pub struct Parse {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl Parse {
@@ -396,7 +396,7 @@ impl Message for Parse {
 
 #[derive(Debug)]
 pub struct Flush {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl Flush {
@@ -419,7 +419,7 @@ impl Message for Flush {
 
 #[derive(Debug)]
 pub struct CopyDone {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl CopyDone {
@@ -442,7 +442,7 @@ impl Message for CopyDone {
 
 #[derive(Debug)]
 pub struct CopyData {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl CopyData {
@@ -465,7 +465,7 @@ impl Message for CopyData {
 
 #[derive(Debug)]
 pub struct CopyFail {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl CopyFail {
@@ -488,7 +488,7 @@ impl Message for CopyFail {
 
 #[derive(Debug)]
 pub struct FunctionCall {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl FunctionCall {
@@ -511,7 +511,7 @@ impl Message for FunctionCall {
 
 #[derive(Debug)]
 pub struct Execute {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl Execute {
@@ -534,7 +534,7 @@ impl Message for Execute {
 
 #[derive(Debug)]
 pub struct Describe {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl Describe {
@@ -557,7 +557,7 @@ impl Message for Describe {
 
 #[derive(Debug)]
 pub struct Close {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl Close {
@@ -580,7 +580,7 @@ impl Message for Close {
 
 #[derive(Debug)]
 pub struct Bind {
-    pub message_bytes: BytesMut,
+    message_bytes: BytesMut,
 }
 
 impl Bind {
