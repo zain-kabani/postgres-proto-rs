@@ -228,6 +228,7 @@ impl Message for GssEncReq {
 
 //----------------------------------------------------------------
 // Frontend Messages
+#[derive(Debug)]
 pub enum FrontendMessageType {
     Query(Query),
     Bind(Bind),
@@ -324,6 +325,7 @@ impl FrontendMessageType {
 
 pub trait FrontendMessage: Message {}
 
+#[derive(Debug)]
 pub struct Terminate {
     pub message_bytes: BytesMut,
 }
@@ -346,6 +348,7 @@ impl Message for Terminate {
     }
 }
 
+#[derive(Debug)]
 pub struct Sync {
     pub message_bytes: BytesMut,
 }
@@ -368,6 +371,7 @@ impl Message for Sync {
     }
 }
 
+#[derive(Debug)]
 pub struct Parse {
     pub message_bytes: BytesMut,
 }
@@ -390,6 +394,7 @@ impl Message for Parse {
     }
 }
 
+#[derive(Debug)]
 pub struct Flush {
     pub message_bytes: BytesMut,
 }
@@ -412,6 +417,7 @@ impl Message for Flush {
     }
 }
 
+#[derive(Debug)]
 pub struct CopyDone {
     pub message_bytes: BytesMut,
 }
@@ -434,6 +440,7 @@ impl Message for CopyDone {
     }
 }
 
+#[derive(Debug)]
 pub struct CopyData {
     pub message_bytes: BytesMut,
 }
@@ -456,6 +463,7 @@ impl Message for CopyData {
     }
 }
 
+#[derive(Debug)]
 pub struct CopyFail {
     pub message_bytes: BytesMut,
 }
@@ -478,6 +486,7 @@ impl Message for CopyFail {
     }
 }
 
+#[derive(Debug)]
 pub struct FunctionCall {
     pub message_bytes: BytesMut,
 }
@@ -500,6 +509,7 @@ impl Message for FunctionCall {
     }
 }
 
+#[derive(Debug)]
 pub struct Execute {
     pub message_bytes: BytesMut,
 }
@@ -522,6 +532,7 @@ impl Message for Execute {
     }
 }
 
+#[derive(Debug)]
 pub struct Describe {
     pub message_bytes: BytesMut,
 }
@@ -544,6 +555,7 @@ impl Message for Describe {
     }
 }
 
+#[derive(Debug)]
 pub struct Close {
     pub message_bytes: BytesMut,
 }
@@ -566,6 +578,7 @@ impl Message for Close {
     }
 }
 
+#[derive(Debug)]
 pub struct Bind {
     pub message_bytes: BytesMut,
 }
@@ -588,6 +601,7 @@ impl Message for Bind {
     }
 }
 
+#[derive(Debug)]
 pub struct Query {
     pub query_string: String,
 }

@@ -1,6 +1,6 @@
 pub mod errors;
 pub mod messages;
-pub mod tokio;
+pub mod network;
 
 #[cfg(test)]
 mod tests {

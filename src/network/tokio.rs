@@ -4,38 +4,7 @@ use crate::errors::Error;
 use crate::messages::{backend::*, frontend::*};
 
 use bytes::{BufMut, BytesMut};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
-};
-
-pub struct Backend {
-    pub read_stream: OwnedReadHalf,
-    pub write_stream: OwnedWriteHalf,
-}
-
-impl Backend {
-    pub fn new(read_stream: OwnedReadHalf, write_stream: OwnedWriteHalf) -> Self {
-        Self {
-            read_stream,
-            write_stream,
-        }
-    }
-}
-
-pub struct Frontend {
-    pub read_stream: OwnedReadHalf,
-    pub write_stream: OwnedWriteHalf,
-}
-
-impl Frontend {
-    pub fn new(read_stream: OwnedReadHalf, write_stream: OwnedWriteHalf) -> Self {
-        Self {
-            read_stream,
-            write_stream,
-        }
-    }
-}
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub async fn read_startup<S>(stream: &mut S) -> Result<StartupMessageType, Error>
 where
@@ -43,7 +12,7 @@ where
 {
     let len = match stream.read_i32().await {
         Ok(len) => len,
-        Err(_) => return Err(Error::SocketIOError),
+        Err(err) => return Err(Error::SocketIOError),
     };
 
     let code = match stream.read_i32().await {
