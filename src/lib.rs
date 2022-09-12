@@ -1,5 +1,5 @@
-pub mod messages;
 pub mod errors;
+pub mod messages;
 pub mod tokio;
 
 #[cfg(test)]

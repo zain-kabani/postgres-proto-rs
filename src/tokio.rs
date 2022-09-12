@@ -1,21 +1,43 @@
 use std::mem;
 
-use crate::messages::{Message, frontend::*, backend::*};
 use crate::errors::Error;
+use crate::messages::{backend::*, frontend::*};
 
-use bytes::{BytesMut, BufMut};
-use num_traits::FromPrimitive;
+use bytes::{BufMut, BytesMut};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-    },
+    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
 };
 
+pub struct Backend {
+    pub read_stream: OwnedReadHalf,
+    pub write_stream: OwnedWriteHalf,
+}
 
-pub async fn read_startup(
-    stream: &mut OwnedReadHalf,
-) -> Result<Box<dyn StartupMessage<MessageType = StartupMessageType>>, Error> {
+impl Backend {
+    pub fn new(read_stream: OwnedReadHalf, write_stream: OwnedWriteHalf) -> Self {
+        Self {
+            read_stream,
+            write_stream,
+        }
+    }
+}
+
+pub struct Frontend {
+    pub read_stream: OwnedReadHalf,
+    pub write_stream: OwnedWriteHalf,
+}
+
+impl Frontend {
+    pub fn new(read_stream: OwnedReadHalf, write_stream: OwnedWriteHalf) -> Self {
+        Self {
+            read_stream,
+            write_stream,
+        }
+    }
+}
+
+pub async fn read_startup(stream: &mut OwnedReadHalf) -> Result<StartupMessageType, Error> {
     let len = match stream.read_i32().await {
         Ok(len) => len,
         Err(_) => return Err(Error::SocketIOError),
@@ -40,59 +62,54 @@ pub async fn read_startup(
 
     bytes_mut.put_slice(&message_bytes);
 
-    println!("F: {:?}", String::from_utf8_lossy(&bytes_mut));
+    println!(
+        "F: Startup message: {:?}",
+        String::from_utf8_lossy(&bytes_mut)
+    );
 
-    match FromPrimitive::from_i32(code) {
-        Some(StartupMessageCodes::ProtocolVersion) => {
-            let startup_message = StartupParameters::new_from_bytes(bytes_mut)?;
-            Ok(Box::new(startup_message))
-        }
-        Some(StartupMessageCodes::SSLRequest) => {
-            let ssl_request = SSLRequest::new_from_bytes(bytes_mut)?;
-            Ok(Box::new(ssl_request))
-        }
-        Some(StartupMessageCodes::CancelRequest) => {
-            let cancel_request = CancelRequest::new_from_bytes(bytes_mut)?;
-            Ok(Box::new(cancel_request))
-        }
-        Some(StartupMessageCodes::GssEncReq) => {
-            let gss_enc_request = GssEncReq::new_from_bytes(bytes_mut)?;
-            Ok(Box::new(gss_enc_request))
-        }
-        None => {
-            panic!("unknown startup code {}", code);
-        }
-    }
+    StartupMessageType::new_from_bytes(code, bytes_mut)
+}
+
+pub async fn send_startup_message(stream: &mut OwnedWriteHalf, message: StartupMessageType) {
+    stream.write(&message.get_bytes()).await.unwrap();
 }
 
 pub async fn read_frontend_message(
     stream: &mut OwnedReadHalf,
-) -> Result<Box<dyn FrontendMessage<MessageType = FrontendMessageType>>, Error> {
-
-    let (code, message_bytes) = read_message_bytes(stream).await?;
+) -> Result<FrontendMessageType, Error> {
+    let (msg_type, message_bytes) = read_message_bytes(stream).await?;
 
     println!(
-        "F: {} {:?}",
-        code as char,
+        "F: Code: {}\n Message: {:?}",
+        msg_type as char,
         String::from_utf8_lossy(&message_bytes)
     );
-    match code as char {
-        'Q' => {
-            let query = Query::new_from_bytes(message_bytes)?;
-            Ok(Box::new(query))
-        }
-        _ => panic!("unknown protocol"),
-    }
+    FrontendMessageType::new_from_bytes(msg_type, message_bytes)
 }
 
+pub async fn send_frontend_message(stream: &mut OwnedWriteHalf, message: FrontendMessageType) {
+    stream.write(&message.get_bytes()).await.unwrap();
+}
 
-pub async fn send_backend_message(stream: &mut OwnedWriteHalf, message: impl BackendMessage) {
+pub async fn read_backend_message(stream: &mut OwnedReadHalf) -> Result<BackendMessageType, Error> {
+    let (msg_type, message_bytes) = read_message_bytes(stream).await?;
+
+    println!(
+        "B: Code: {}\n Message: {:?}",
+        msg_type as char,
+        String::from_utf8_lossy(&message_bytes)
+    );
+
+    BackendMessageType::new_from_bytes(msg_type, message_bytes)
+}
+
+pub async fn send_backend_message(stream: &mut OwnedWriteHalf, message: BackendMessageType) {
     stream.write(&message.get_bytes()).await.unwrap();
 }
 
 pub async fn read_message_bytes(stream: &mut OwnedReadHalf) -> Result<(u8, BytesMut), Error> {
-    let code = match stream.read_u8().await {
-        Ok(code) => code,
+    let msg_type = match stream.read_u8().await {
+        Ok(msg_type) => msg_type,
         Err(_) => return Err(Error::SocketIOError),
     };
 
@@ -103,15 +120,15 @@ pub async fn read_message_bytes(stream: &mut OwnedReadHalf) -> Result<(u8, Bytes
 
     let mut message_body = vec![0u8; len as usize - 4];
     match stream.read_exact(&mut message_body).await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(_) => return Err(Error::SocketIOError),
     }
 
     let mut message_bytes = BytesMut::with_capacity(mem::size_of::<u8>() + len as usize);
 
-    message_bytes.put_u8(code);
+    message_bytes.put_u8(msg_type);
     message_bytes.put_i32(len);
     message_bytes.put_slice(&message_body);
 
-    Ok((code, message_bytes))
+    Ok((msg_type, message_bytes))
 }

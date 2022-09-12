@@ -2,5 +2,7 @@
 pub enum Error {
     ParseError(String),
     SocketIOError,
-    InvalidBytes
+    InvalidBytes,
+    InvalidProtocol,
+    UnsupportedProtocol,
 }
