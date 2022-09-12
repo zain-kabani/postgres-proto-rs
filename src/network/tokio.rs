@@ -1,10 +1,10 @@
+use bytes::{BufMut, BytesMut};
+use log::trace;
 use std::mem;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::errors::Error;
 use crate::messages::{backend::*, frontend::*};
-
-use bytes::{BufMut, BytesMut};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub async fn read_startup<S>(stream: &mut S) -> Result<StartupMessageType, Error>
 where
@@ -12,7 +12,7 @@ where
 {
     let len = match stream.read_i32().await {
         Ok(len) => len,
-        Err(err) => return Err(Error::SocketIOError),
+        Err(_) => return Err(Error::SocketIOError),
     };
 
     let code = match stream.read_i32().await {
@@ -34,7 +34,7 @@ where
 
     bytes_mut.put_slice(&message_bytes);
 
-    println!(
+    trace!(
         "F: Startup message: {:?}",
         String::from_utf8_lossy(&bytes_mut)
     );
@@ -45,13 +45,13 @@ where
 pub async fn send_startup_message<S>(
     stream: &mut S,
     message: &StartupMessageType,
-) -> Result<(), std::io::Error>
+) -> Result<(), Error>
 where
     S: tokio::io::AsyncWrite + std::marker::Unpin,
 {
     match stream.write(&message.get_bytes()).await {
         Ok(_) => Ok(()),
-        Err(err) => return Err(err),
+        Err(_) => return Err(Error::SocketIOError),
     }
 }
 
@@ -61,7 +61,7 @@ where
 {
     let (msg_type, message_bytes) = read_message_bytes(stream).await?;
 
-    println!(
+    trace!(
         "F: Code: {}\n Message: {:?}",
         msg_type as char,
         String::from_utf8_lossy(&message_bytes)
@@ -72,13 +72,13 @@ where
 pub async fn send_frontend_message<S>(
     stream: &mut S,
     message: &FrontendMessageType,
-) -> Result<(), std::io::Error>
+) -> Result<(), Error>
 where
     S: tokio::io::AsyncWrite + std::marker::Unpin,
 {
     match stream.write(&message.get_bytes()).await {
         Ok(_) => Ok(()),
-        Err(err) => return Err(err),
+        Err(_) => return Err(Error::SocketIOError),
     }
 }
 
@@ -88,7 +88,7 @@ where
 {
     let (msg_type, message_bytes) = read_message_bytes(stream).await?;
 
-    println!(
+    trace!(
         "B: Code: {}\n Message: {:?}",
         msg_type as char,
         String::from_utf8_lossy(&message_bytes)
@@ -100,13 +100,13 @@ where
 pub async fn send_backend_message<S>(
     stream: &mut S,
     message: &BackendMessageType,
-) -> Result<(), std::io::Error>
+) -> Result<(), Error>
 where
     S: tokio::io::AsyncWrite + std::marker::Unpin,
 {
     match stream.write(&message.get_bytes()).await {
         Ok(_) => Ok(()),
-        Err(err) => Err(err),
+        Err(_) => return Err(Error::SocketIOError),
     }
 }
 

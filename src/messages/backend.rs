@@ -785,7 +785,9 @@ impl BackendMessage for ReadyForQuery {}
 
 impl Message for ReadyForQuery {
     fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
-        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>() {
+        if message_bytes.len()
+            != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>()
+        {
             return Err(Error::InvalidBytes);
         }
 
@@ -836,7 +838,9 @@ impl BackendMessage for AuthenticationOk {}
 
 impl Message for AuthenticationOk {
     fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
-        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>() {
+        if message_bytes.len()
+            != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>()
+        {
             return Err(Error::InvalidBytes);
         }
 
@@ -868,7 +872,9 @@ impl BackendMessage for AuthenticationCleartextPassword {}
 
 impl Message for AuthenticationCleartextPassword {
     fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
-        if message_bytes.len() != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>() {
+        if message_bytes.len()
+            != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>()
+        {
             return Err(Error::InvalidBytes);
         }
 

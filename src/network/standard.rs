@@ -1,9 +1,9 @@
+use bytes::{BufMut, BytesMut};
+use log::trace;
 use std::mem;
 
 use crate::errors::Error;
 use crate::messages::{backend::*, frontend::*};
-
-use bytes::{BufMut, BytesMut};
 
 pub fn read_startup<S>(stream: &mut S) -> Result<StartupMessageType, Error>
 where
@@ -37,7 +37,7 @@ where
 
     bytes_mut.put_slice(&message_bytes);
 
-    println!(
+    trace!(
         "F: Startup message: {:?}",
         String::from_utf8_lossy(&bytes_mut)
     );
@@ -64,7 +64,7 @@ where
 {
     let (msg_type, message_bytes) = read_message_bytes(stream)?;
 
-    println!(
+    trace!(
         "F: Code: {}\n Message: {:?}",
         msg_type as char,
         String::from_utf8_lossy(&message_bytes)
@@ -91,7 +91,7 @@ where
 {
     let (msg_type, message_bytes) = read_message_bytes(stream)?;
 
-    println!(
+    trace!(
         "B: Code: {}\n Message: {:?}",
         msg_type as char,
         String::from_utf8_lossy(&message_bytes)
