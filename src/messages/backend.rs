@@ -1,37 +1,37 @@
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{BufMut, BytesMut};
 use std::mem;
 
-use crate::messages::{Error, Message};
+use crate::messages::{Buffer, Error, Message};
 
 //----------------------------------------------------------------
 // Backend Messages
 
 #[derive(Debug)]
 pub enum BackendMessageType {
-    AuthenticationCleartextPassword,
+    AuthenticationCleartextPassword(AuthenticationCleartextPassword),
     AuthenticationMd5Password(AuthenticationMD5Password),
-    AuthenticationOk,
+    AuthenticationOk(AuthenticationOk),
     AuthenticationSASL(AuthenticationSASL),
     AuthenticationSASLContinue(AuthenticationSASLContinue),
     AuthenticationSASLFinal(AuthenticationSASLFinal),
     BackendKeyData(BackendKeyData),
-    BindComplete,
-    CloseComplete,
+    BindComplete(BindComplete),
+    CloseComplete(CloseComplete),
     CommandComplete(CommandComplete),
     CopyData(CopyData),
-    CopyDone,
+    CopyDone(CopyDone),
     CopyInResponse(CopyInResponse),
     CopyOutResponse(CopyOutResponse),
     DataRow(DataRow),
-    EmptyQueryResponse,
+    EmptyQueryResponse(EmptyQueryResponse),
     ErrorResponse(ErrorResponse),
-    NoData,
+    NoData(NoData),
     NoticeResponse(NoticeResponse),
     NotificationResponse(NotificationResponse),
     ParameterDescription(ParameterDescription),
     ParameterStatus(ParameterStatus),
-    ParseComplete,
-    PortalSuspended,
+    ParseComplete(ParseComplete),
+    PortalSuspended(PortalSuspended),
     ReadyForQuery(ReadyForQuery),
     RowDescription(RowDescription),
     FunctionCallResponse(FunctionCallResponse),
@@ -39,34 +39,32 @@ pub enum BackendMessageType {
 }
 
 impl BackendMessageType {
-    pub fn get_bytes(&self) -> BytesMut {
+    pub fn get_bytes(&self) -> &BytesMut {
         match self {
-            Self::AuthenticationCleartextPassword => {
-                AuthenticationCleartextPassword::new().get_bytes()
-            }
+            Self::AuthenticationCleartextPassword(ct_password) => ct_password.get_bytes(),
             Self::AuthenticationMd5Password(md5_password) => md5_password.get_bytes(),
-            Self::AuthenticationOk => AuthenticationOk::new().get_bytes(),
+            Self::AuthenticationOk(auth_ok) => auth_ok.get_bytes(),
             Self::AuthenticationSASL(sasl) => sasl.get_bytes(),
             Self::AuthenticationSASLContinue(sasl_cont) => sasl_cont.get_bytes(),
             Self::AuthenticationSASLFinal(sasl_final) => sasl_final.get_bytes(),
             Self::BackendKeyData(data) => data.get_bytes(),
-            Self::BindComplete => BindComplete::new().get_bytes(),
-            Self::CloseComplete => CloseComplete::new().get_bytes(),
+            Self::BindComplete(bind_complete) => bind_complete.get_bytes(),
+            Self::CloseComplete(close_complete) => close_complete.get_bytes(),
             Self::CommandComplete(command_complete) => command_complete.get_bytes(),
             Self::CopyData(copy_data) => copy_data.get_bytes(),
-            Self::CopyDone => CopyDone::new().get_bytes(),
+            Self::CopyDone(copy_done) => copy_done.get_bytes(),
             Self::CopyInResponse(copy_in_response) => copy_in_response.get_bytes(),
             Self::CopyOutResponse(copy_out_response) => copy_out_response.get_bytes(),
             Self::DataRow(row_data) => row_data.get_bytes(),
-            Self::EmptyQueryResponse => EmptyQueryResponse::new().get_bytes(),
+            Self::EmptyQueryResponse(empty_query_response) => empty_query_response.get_bytes(),
             Self::ErrorResponse(error_response) => error_response.get_bytes(),
-            Self::NoData => NoData::new().get_bytes(),
+            Self::NoData(no_data) => no_data.get_bytes(),
             Self::NoticeResponse(notice_response) => notice_response.get_bytes(),
             Self::NotificationResponse(notif_resp) => notif_resp.get_bytes(),
             Self::ParameterDescription(param_desc) => param_desc.get_bytes(),
             Self::ParameterStatus(parameter_status) => parameter_status.get_bytes(),
-            Self::ParseComplete => ParseComplete::new().get_bytes(),
-            Self::PortalSuspended => PortalSuspended::new().get_bytes(),
+            Self::ParseComplete(parse_complete) => parse_complete.get_bytes(),
+            Self::PortalSuspended(portal_suspended) => portal_suspended.get_bytes(),
             Self::ReadyForQuery(ready_for_query) => ready_for_query.get_bytes(),
             Self::RowDescription(row_description) => row_description.get_bytes(),
             Self::FunctionCallResponse(function_call_resp) => function_call_resp.get_bytes(),
@@ -88,8 +86,15 @@ impl BackendMessageType {
                 };
 
                 match auth_type {
-                    AUTH_CODE_OK => Ok(Self::AuthenticationOk),
-                    AUTH_CODE_CLEARTEXT_PASSWORD => Ok(Self::AuthenticationCleartextPassword),
+                    AUTH_CODE_OK => {
+                        let auth_ok = AuthenticationOk::new_from_bytes(message_bytes)?;
+                        Ok(Self::AuthenticationOk(auth_ok))
+                    }
+                    AUTH_CODE_CLEARTEXT_PASSWORD => {
+                        let cleartext_password =
+                            AuthenticationCleartextPassword::new_from_bytes(message_bytes)?;
+                        Ok(Self::AuthenticationCleartextPassword(cleartext_password))
+                    }
                     AUTH_CODE_MD5_PASSWORD => {
                         let md5_password =
                             AuthenticationMD5Password::new_from_bytes(message_bytes)?;
@@ -141,14 +146,26 @@ impl BackendMessageType {
                 let ready_for_query = ReadyForQuery::new_from_bytes(message_bytes)?;
                 Ok(Self::ReadyForQuery(ready_for_query))
             }
-            '1' => Ok(Self::ParseComplete),
-            '2' => Ok(Self::BindComplete),
-            '3' => Ok(Self::CloseComplete),
+            '1' => {
+                let parse_complete = ParseComplete::new_from_bytes(message_bytes)?;
+                Ok(Self::ParseComplete(parse_complete))
+            }
+            '2' => {
+                let bind_complete = BindComplete::new_from_bytes(message_bytes)?;
+                Ok(Self::BindComplete(bind_complete))
+            }
+            '3' => {
+                let close_complete = CloseComplete::new_from_bytes(message_bytes)?;
+                Ok(Self::CloseComplete(close_complete))
+            }
             'A' => {
                 let notification_response = NotificationResponse::new_from_bytes(message_bytes)?;
                 Ok(Self::NotificationResponse(notification_response))
             }
-            'c' => Ok(Self::CopyDone),
+            'c' => {
+                let copy_done = CopyDone::new_from_bytes(message_bytes)?;
+                Ok(Self::CopyDone(copy_done))
+            }
             'd' => {
                 let copy_data = CopyData::new_from_bytes(message_bytes)?;
                 Ok(Self::CopyData(copy_data))
@@ -161,13 +178,22 @@ impl BackendMessageType {
                 let copy_out_response = CopyOutResponse::new_from_bytes(message_bytes)?;
                 Ok(Self::CopyOutResponse(copy_out_response))
             }
-            'I' => Ok(Self::EmptyQueryResponse),
-            'n' => Ok(Self::NoData),
+            'I' => {
+                let empty_query_response = EmptyQueryResponse::new_from_bytes(message_bytes)?;
+                Ok(Self::EmptyQueryResponse(empty_query_response))
+            }
+            'n' => {
+                let no_data = NoData::new_from_bytes(message_bytes)?;
+                Ok(Self::NoData(no_data))
+            }
             'N' => {
                 let notice_response = NoticeResponse::new_from_bytes(message_bytes)?;
                 Ok(Self::NoticeResponse(notice_response))
             }
-            's' => Ok(Self::PortalSuspended),
+            's' => {
+                let portal_suspended = PortalSuspended::new_from_bytes(message_bytes)?;
+                Ok(Self::PortalSuspended(portal_suspended))
+            }
             't' => {
                 let parameter_description = ParameterDescription::new_from_bytes(message_bytes)?;
                 Ok(Self::ParameterDescription(parameter_description))
@@ -189,11 +215,19 @@ impl BackendMessageType {
 pub trait BackendMessage: Message {}
 
 #[derive(Debug)]
-pub struct ParseComplete {}
+pub struct ParseComplete {
+    message_bytes: BytesMut,
+}
 
 impl ParseComplete {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
+
+        message_bytes.put_u8(b'1');
+        message_bytes.put_i32(4);
+
+        Self { message_bytes }
     }
 }
 
@@ -205,26 +239,28 @@ impl Message for ParseComplete {
             return Err(Error::InvalidBytes);
         }
 
-        Ok(Self {})
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut parse_complete =
-            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
-
-        parse_complete.put_u8(b'1');
-        parse_complete.put_i32(4);
-
-        return parse_complete;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct BindComplete {}
+pub struct BindComplete {
+    message_bytes: BytesMut,
+}
 
 impl BindComplete {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
+
+        message_bytes.put_u8(b'2');
+        message_bytes.put_i32(4);
+
+        Self { message_bytes }
     }
 }
 
@@ -236,26 +272,28 @@ impl Message for BindComplete {
             return Err(Error::InvalidBytes);
         }
 
-        Ok(Self {})
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut bind_complete =
-            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
-
-        bind_complete.put_u8(b'2');
-        bind_complete.put_i32(4);
-
-        return bind_complete;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct CloseComplete {}
+pub struct CloseComplete {
+    message_bytes: BytesMut,
+}
 
 impl CloseComplete {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
+
+        message_bytes.put_u8(b'3');
+        message_bytes.put_i32(4);
+
+        Self { message_bytes }
     }
 }
 
@@ -267,17 +305,11 @@ impl Message for CloseComplete {
             return Err(Error::InvalidBytes);
         }
 
-        Ok(Self {})
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut close_complete =
-            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
-
-        close_complete.put_u8(b'3');
-        close_complete.put_i32(4);
-
-        return close_complete;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -299,8 +331,8 @@ impl Message for NotificationResponse {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -322,8 +354,8 @@ impl Message for FunctionCallResponse {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -345,17 +377,24 @@ impl Message for CopyBothResponse {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct CopyDone {}
+pub struct CopyDone {
+    message_bytes: BytesMut,
+}
 
 impl CopyDone {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
+
+        message_bytes.put_u8(b'c');
+        message_bytes.put_i32(4);
+        Self { message_bytes }
     }
 }
 
@@ -367,55 +406,61 @@ impl Message for CopyDone {
             return Err(Error::InvalidBytes);
         }
 
-        Ok(Self {})
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut copy_done = BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
-
-        copy_done.put_u8(b'c');
-        copy_done.put_i32(4);
-
-        return copy_done;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
 pub struct CommandComplete {
+    message_bytes: BytesMut,
     pub command_tag: String,
 }
 
 impl CommandComplete {
     pub fn new(command_tag: String) -> Self {
-        Self { command_tag }
+        let mut message_bytes = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>(),
+        );
+
+        let msg_len = (command_tag.len() + 1 + mem::size_of::<i32>()) as i32;
+
+        message_bytes.put_u8(b'C');
+        message_bytes.put_i32(msg_len);
+        message_bytes.put(&command_tag.as_bytes()[..]);
+        message_bytes.put_u8(0);
+
+        Self {
+            message_bytes,
+            command_tag,
+        }
     }
 }
 
 impl BackendMessage for CommandComplete {}
 
 impl Message for CommandComplete {
-    fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
-        let _code = message_bytes.get_u8();
-        let len = message_bytes.get_i32() as usize;
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        let mut buffer = Buffer::new(message_bytes);
 
-        let command_tag = String::from_utf8_lossy(&message_bytes[..len - 5]).to_string();
+        let _code = buffer.read_u8()?;
+        let _len = buffer.read_i32()? as usize;
 
-        Ok(Self { command_tag })
+        let command_tag = buffer.read_string()?;
+
+        // let command_tag = String::from_utf8_lossy(&message_bytes[..len - 5]).to_string();
+
+        Ok(Self {
+            message_bytes: buffer.buffer,
+            command_tag,
+        })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut message_bytes = BytesMut::with_capacity(
-            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>(),
-        );
-
-        let msg_len = (self.command_tag.len() + 1 + mem::size_of::<i32>()) as i32;
-
-        message_bytes.put_u8(b'C');
-        message_bytes.put_i32(msg_len);
-        message_bytes.put(&self.command_tag.as_bytes()[..]);
-        message_bytes.put_u8(0);
-
-        return message_bytes;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -437,8 +482,8 @@ impl Message for CopyData {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -460,8 +505,8 @@ impl Message for DataRow {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -483,8 +528,8 @@ impl Message for ErrorResponse {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -506,8 +551,8 @@ impl Message for CopyInResponse {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -529,17 +574,24 @@ impl Message for CopyOutResponse {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct EmptyQueryResponse {}
+pub struct EmptyQueryResponse {
+    message_bytes: BytesMut,
+}
 
 impl EmptyQueryResponse {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
+
+        message_bytes.put_u8(b'I');
+        message_bytes.put_i32(4);
+        Self { message_bytes }
     }
 }
 
@@ -551,29 +603,37 @@ impl Message for EmptyQueryResponse {
             return Err(Error::InvalidBytes);
         }
 
-        Ok(Self {})
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut empty_query_response =
-            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
-
-        empty_query_response.put_u8(b'I');
-        empty_query_response.put_i32(4);
-
-        return empty_query_response;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
 pub struct BackendKeyData {
+    message_bytes: BytesMut,
     pub process_id: i32,
     pub secret_key: i32,
 }
 
 impl BackendKeyData {
     pub fn new(process_id: i32, secret_key: i32) -> Self {
+        let mut message_bytes = BytesMut::with_capacity(
+            mem::size_of::<u8>()
+                + mem::size_of::<i32>()
+                + mem::size_of::<i32>()
+                + mem::size_of::<i32>(),
+        );
+
+        message_bytes.put_u8(b'K');
+        message_bytes.put_i32(12);
+        message_bytes.put_i32(process_id);
+        message_bytes.put_i32(secret_key);
+
         Self {
+            message_bytes,
             process_id,
             secret_key,
         }
@@ -583,7 +643,7 @@ impl BackendKeyData {
 impl BackendMessage for BackendKeyData {}
 
 impl Message for BackendKeyData {
-    fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
         if message_bytes.len()
             != mem::size_of::<u8>()
                 + mem::size_of::<i32>()
@@ -593,40 +653,39 @@ impl Message for BackendKeyData {
             return Err(Error::InvalidBytes);
         }
 
-        let _code = message_bytes.get_u8();
-        let _len = message_bytes.get_i32();
-        let process_id = message_bytes.get_i32();
-        let secret_key = message_bytes.get_i32();
+        let mut buffer = Buffer::new(message_bytes);
+
+        let _code = buffer.read_u8()?;
+        let _len = buffer.read_i32()?;
+        let process_id = buffer.read_i32()?;
+        let secret_key = buffer.read_i32()?;
 
         Ok(Self {
+            message_bytes: buffer.buffer,
             process_id,
             secret_key,
         })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut backend_key_data = BytesMut::with_capacity(
-            mem::size_of::<u8>()
-                + mem::size_of::<i32>()
-                + mem::size_of::<i32>()
-                + mem::size_of::<i32>(),
-        );
-
-        backend_key_data.put_u8(b'K');
-        backend_key_data.put_i32(12);
-        backend_key_data.put_i32(self.process_id);
-        backend_key_data.put_i32(self.secret_key);
-
-        return backend_key_data;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct NoData {}
+pub struct NoData {
+    message_bytes: BytesMut,
+}
 
 impl NoData {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
+
+        message_bytes.put_u8(b'n');
+        message_bytes.put_i32(4);
+
+        Self { message_bytes }
     }
 }
 
@@ -638,17 +697,11 @@ impl Message for NoData {
             return Err(Error::InvalidBytes);
         }
 
-        Ok(Self {})
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut backend_key_data =
-            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
-
-        backend_key_data.put_u8(b'n');
-        backend_key_data.put_i32(4);
-
-        return backend_key_data;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -670,8 +723,8 @@ impl Message for NoticeResponse {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -693,8 +746,8 @@ impl Message for ParameterDescription {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -716,8 +769,8 @@ impl Message for ParameterStatus {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -739,73 +792,85 @@ impl Message for RowDescription {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct PortalSuspended {}
+pub struct PortalSuspended {
+    message_bytes: BytesMut,
+}
 
 impl PortalSuspended {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
+
+        message_bytes.put_u8(b's');
+        message_bytes.put_i32(4);
+
+        Self { message_bytes }
     }
 }
 
 impl BackendMessage for PortalSuspended {}
 
 impl Message for PortalSuspended {
-    fn new_from_bytes(_bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self {})
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut data_bytes = BytesMut::with_capacity(mem::size_of::<u8>() + mem::size_of::<i32>());
-
-        data_bytes.put_u8(b's');
-        data_bytes.put_i32(4);
-
-        return data_bytes;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
 pub struct ReadyForQuery {
+    message_bytes: BytesMut,
     pub tx_status: u8,
 }
 
 impl ReadyForQuery {
     pub fn new(tx_status: u8) -> Self {
-        Self { tx_status }
+        let mut message_bytes = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>(),
+        );
+        message_bytes.put_u8(b'Z');
+        message_bytes.put_i32(5);
+        message_bytes.put_u8(tx_status);
+
+        Self {
+            message_bytes,
+            tx_status,
+        }
     }
 }
 
 impl BackendMessage for ReadyForQuery {}
 
 impl Message for ReadyForQuery {
-    fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
         if message_bytes.len()
             != mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>()
         {
             return Err(Error::InvalidBytes);
         }
 
-        let _code = message_bytes.get_u8();
-        let _len = message_bytes.get_i32();
-        let tx_status = message_bytes.get_u8(); // TODO: Add validation
-        Ok(Self { tx_status })
+        let mut buffer = Buffer::new(message_bytes);
+
+        let _code = buffer.read_u8()?;
+        let _len = buffer.read_i32()?;
+        let tx_status = buffer.read_u8()?; // TODO: Add validation
+        Ok(Self {
+            message_bytes: buffer.buffer,
+            tx_status,
+        })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut ready_for_query = BytesMut::with_capacity(
-            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>(),
-        );
-        ready_for_query.put_u8(b'Z');
-        ready_for_query.put_i32(5);
-        ready_for_query.put_u8(self.tx_status);
-
-        return ready_for_query;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -826,11 +891,21 @@ pub const AUTH_CODE_SASL_CONTINUE: i32 = 11;
 pub const AUTH_CODE_SASL_FINAL: i32 = 12;
 
 #[derive(Debug)]
-pub struct AuthenticationOk {}
+pub struct AuthenticationOk {
+    message_bytes: BytesMut,
+}
 
 impl AuthenticationOk {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>(),
+        );
+
+        message_bytes.put_u8(b'R');
+        message_bytes.put_i32(8);
+        message_bytes.put_i32(AUTH_CODE_OK);
+
+        Self { message_bytes }
     }
 }
 
@@ -844,27 +919,30 @@ impl Message for AuthenticationOk {
             return Err(Error::InvalidBytes);
         }
 
-        Ok(Self {})
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut auth = BytesMut::with_capacity(
-            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>(),
-        );
-        auth.put_u8(b'R');
-        auth.put_i32(8);
-        auth.put_i32(AUTH_CODE_OK);
-
-        return auth;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct AuthenticationCleartextPassword {}
+pub struct AuthenticationCleartextPassword {
+    message_bytes: BytesMut,
+}
 
 impl AuthenticationCleartextPassword {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>(),
+        );
+
+        message_bytes.put_u8(b'R');
+        message_bytes.put_i32(8);
+        message_bytes.put_i32(AUTH_CODE_CLEARTEXT_PASSWORD);
+
+        Self { message_bytes }
     }
 }
 
@@ -878,63 +956,65 @@ impl Message for AuthenticationCleartextPassword {
             return Err(Error::InvalidBytes);
         }
 
-        Ok(Self {})
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut auth = BytesMut::with_capacity(
-            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<i32>(),
-        );
-        auth.put_u8(b'R');
-        auth.put_i32(8);
-        auth.put_i32(AUTH_CODE_CLEARTEXT_PASSWORD);
-
-        return auth;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
 pub struct AuthenticationMD5Password {
+    message_bytes: BytesMut,
     pub salt: [u8; 4],
 }
 
 impl AuthenticationMD5Password {
     pub fn new(salt: [u8; 4]) -> Self {
-        Self { salt }
+        let mut message_bytes = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() * 2 + mem::size_of::<u8>() * 4,
+        );
+
+        message_bytes.put_u8(b'R');
+        message_bytes.put_i32(12);
+        message_bytes.put_i32(AUTH_CODE_MD5_PASSWORD);
+        message_bytes.put_slice(&salt);
+
+        Self {
+            message_bytes,
+            salt,
+        }
     }
 }
 
 impl BackendMessage for AuthenticationMD5Password {}
 
 impl Message for AuthenticationMD5Password {
-    fn new_from_bytes(mut message_bytes: BytesMut) -> Result<Self, Error> {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
         if message_bytes.len()
             != mem::size_of::<u8>() + mem::size_of::<i32>() * 2 + mem::size_of::<u8>() * 4
         {
             return Err(Error::InvalidBytes);
         }
 
-        let _code = message_bytes.get_u8();
-        let _len = message_bytes.get_i32();
-        let _type = message_bytes.get_i32();
+        let mut buffer = Buffer::new(message_bytes);
+
+        let _code = buffer.read_u8()?;
+        let _len = buffer.read_i32()?;
+        let _type = buffer.read_i32()?;
 
         // These unwraps are safe because of validation above
-        let salt: [u8; 4] = message_bytes.get(0..4).unwrap().try_into().unwrap();
+        let salt: [u8; 4] = buffer.read_by_size(4)?.try_into().unwrap();
 
-        Ok(Self { salt })
+        Ok(Self {
+            message_bytes: buffer.buffer,
+            salt,
+        })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut auth = BytesMut::with_capacity(
-            mem::size_of::<u8>() + mem::size_of::<i32>() * 2 + mem::size_of::<u8>() * 4,
-        );
-
-        auth.put_u8(b'R');
-        auth.put_i32(12);
-        auth.put_i32(AUTH_CODE_MD5_PASSWORD);
-        auth.put_slice(&self.salt);
-
-        return auth;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -956,8 +1036,8 @@ impl Message for AuthenticationSASL {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -979,8 +1059,8 @@ impl Message for AuthenticationSASLContinue {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -1002,7 +1082,7 @@ impl Message for AuthenticationSASLFinal {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        return self.message_bytes.clone();
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }

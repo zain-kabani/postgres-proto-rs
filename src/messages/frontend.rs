@@ -1,7 +1,7 @@
-use bytes::{Buf, BufMut, BytesMut};
-use std::{collections::HashMap, io::BufRead, mem};
+use bytes::{BufMut, BytesMut};
+use std::{collections::HashMap, mem};
 
-use crate::messages::{Error, Message};
+use crate::messages::{Buffer, Error, Message};
 
 //----------------------------------------------------------------
 // Startup Messages
@@ -14,25 +14,25 @@ pub const GSS_ENC_REQ_CODE: i32 = 80877104;
 #[derive(Debug)]
 pub enum StartupMessageType {
     StartupParameters(StartupParameters),
-    SSLRequest,
+    SSLRequest(SSLRequest),
     CancelRequest(CancelRequest),
-    GssEncReq,
+    GssEncReq(GssEncReq),
 }
 
 impl StartupMessageType {
-    pub fn get_bytes(&self) -> BytesMut {
+    pub fn get_bytes(&self) -> &BytesMut {
         match self {
             StartupMessageType::StartupParameters(startup_params) => {
                 return startup_params.get_bytes();
             }
-            StartupMessageType::SSLRequest => {
-                return SSLRequest::new().get_bytes();
+            StartupMessageType::SSLRequest(ssl_request) => {
+                return ssl_request.get_bytes();
             }
             StartupMessageType::CancelRequest(cancel_request) => {
                 return cancel_request.get_bytes();
             }
-            StartupMessageType::GssEncReq => {
-                return GssEncReq::new().get_bytes();
+            StartupMessageType::GssEncReq(gss_enc_req) => {
+                return gss_enc_req.get_bytes();
             }
         }
     }
@@ -43,12 +43,18 @@ impl StartupMessageType {
                 let startup_message = StartupParameters::new_from_bytes(message_bytes)?;
                 Ok(StartupMessageType::StartupParameters(startup_message))
             }
-            SSL_REQUEST_CODE => Ok(StartupMessageType::SSLRequest),
+            SSL_REQUEST_CODE => {
+                let ssl_request = SSLRequest::new_from_bytes(message_bytes)?;
+                Ok(StartupMessageType::SSLRequest(ssl_request))
+            }
             CANCEL_REQUEST_CODE => {
                 let cancel_request = CancelRequest::new_from_bytes(message_bytes)?;
                 Ok(StartupMessageType::CancelRequest(cancel_request))
             }
-            GSS_ENC_REQ_CODE => Ok(StartupMessageType::GssEncReq),
+            GSS_ENC_REQ_CODE => {
+                let gss_enc_req = GssEncReq::new_from_bytes(message_bytes)?;
+                Ok(StartupMessageType::GssEncReq(gss_enc_req))
+            }
             _ => return Err(Error::InvalidProtocol),
         }
     }
@@ -58,7 +64,7 @@ pub trait StartupMessage: Message {}
 
 #[derive(Debug)]
 pub struct StartupParameters {
-    pub protocol_version: i32,
+    message_bytes: BytesMut,
     pub parameters: HashMap<String, String>,
 }
 
@@ -68,50 +74,11 @@ impl StartupParameters {
             return Err(Error::ParseError("Missing user parameter".to_string()));
         };
 
-        Ok(Self {
-            protocol_version: PROTOCOL_VERSION_CODE,
-            parameters,
-        })
-    }
-}
-
-impl StartupMessage for StartupParameters {}
-
-impl Message for StartupParameters {
-    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        let _len = bytes.get_i32();
-
-        let protocol_version = bytes.get_i32();
-
-        let mut split_iter = bytes.reader().split(b'\0');
-
-        let mut parameters = HashMap::new();
-
-        loop {
-            let key = String::from_utf8_lossy(&split_iter.next().unwrap().unwrap()).to_string(); // TODO: handle error
-            if key.len() == 0 {
-                break;
-            }
-            let value = String::from_utf8_lossy(&split_iter.next().unwrap().unwrap()).to_string();
-            parameters.insert(key, value);
-        }
-
-        if !parameters.contains_key("user") {
-            return Err(Error::ParseError("Missing user parameter".to_string()));
-        }
-
-        Ok(Self {
-            protocol_version,
-            parameters,
-        })
-    }
-
-    fn get_bytes(&self) -> BytesMut {
         let mut data_bytes = BytesMut::new();
 
-        data_bytes.put_i32(self.protocol_version);
+        data_bytes.put_i32(PROTOCOL_VERSION_CODE);
 
-        for (key, value) in &self.parameters {
+        for (key, value) in &parameters {
             data_bytes.put(key.as_bytes());
             data_bytes.put_u8(b'\0');
             data_bytes.put(value.as_bytes());
@@ -119,50 +86,105 @@ impl Message for StartupParameters {
         }
         data_bytes.put_u8(b'\0');
 
-        let mut final_bytes = BytesMut::with_capacity(data_bytes.len() + mem::size_of::<i32>());
+        let mut message_bytes = BytesMut::with_capacity(data_bytes.len() + mem::size_of::<i32>());
 
-        final_bytes.put_i32(data_bytes.len() as i32 + mem::size_of::<i32>() as i32);
-        final_bytes.put(data_bytes.freeze());
+        message_bytes.put_i32(data_bytes.len() as i32 + mem::size_of::<i32>() as i32);
+        message_bytes.put(data_bytes);
 
-        return final_bytes;
+        Ok(Self {
+            message_bytes,
+            parameters: parameters,
+        })
+    }
+}
+
+impl StartupMessage for StartupParameters {}
+
+impl Message for StartupParameters {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        let mut buffer = Buffer::new(message_bytes);
+
+        let _len = buffer.read_i32();
+
+        let _protocol_version = buffer.read_i32();
+
+        let mut parameters = HashMap::new();
+
+        loop {
+            let key = match buffer.read_string() {
+                Ok(s) => {
+                    if s.len() == 0 {
+                        break;
+                    } else {
+                        s
+                    }
+                }
+                Err(_) => break, // TODO: handle error
+            };
+
+            let value = buffer.read_string().unwrap();
+
+            parameters.insert(key, value);
+        }
+
+        Ok(Self {
+            message_bytes: buffer.buffer,
+            parameters: parameters,
+        })
+    }
+
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct SSLRequest {}
+pub struct SSLRequest {
+    message_bytes: BytesMut,
+}
 
 impl SSLRequest {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<i32>() + mem::size_of::<i32>());
+
+        message_bytes.put_i32(8);
+        message_bytes.put_i32(SSL_REQUEST_CODE);
+
+        Self { message_bytes }
     }
 }
 
 impl StartupMessage for SSLRequest {}
 
 impl Message for SSLRequest {
-    fn new_from_bytes(_bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self {})
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut data_bytes = BytesMut::with_capacity(mem::size_of::<i32>() + mem::size_of::<i32>());
-
-        data_bytes.put_i32(8);
-        data_bytes.put_i32(SSL_REQUEST_CODE);
-
-        return data_bytes;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
 pub struct CancelRequest {
+    message_bytes: BytesMut,
     pub process_id: i32,
     pub secret_key: i32,
 }
 
 impl CancelRequest {
     pub fn new(process_id: i32, secret_key: i32) -> Self {
+        let mut message_bytes = BytesMut::with_capacity(mem::size_of::<i32>() * 4);
+
+        message_bytes.put_i32(16);
+        message_bytes.put_i32(CANCEL_REQUEST_CODE);
+        message_bytes.put_i32(process_id);
+        message_bytes.put_i32(secret_key);
+
         Self {
+            message_bytes,
             process_id,
             secret_key,
         }
@@ -172,57 +194,56 @@ impl CancelRequest {
 impl StartupMessage for CancelRequest {}
 
 impl Message for CancelRequest {
-    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        if bytes.len() != mem::size_of::<i32>() * 4 {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        if message_bytes.len() != mem::size_of::<i32>() * 4 {
             return Err(Error::InvalidBytes);
         }
 
-        let _len = bytes.get_i32();
-        let _code = bytes.get_i32();
-        let process_id = bytes.get_i32();
-        let secret_key = bytes.get_i32();
+        let mut buffer = Buffer::new(message_bytes);
+
+        let _len = buffer.read_i32()?;
+        let _code = buffer.read_i32()?;
+        let process_id = buffer.read_i32()?;
+        let secret_key = buffer.read_i32()?;
 
         Ok(Self {
+            message_bytes: buffer.buffer,
             process_id,
             secret_key,
         })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut data_bytes = BytesMut::with_capacity(mem::size_of::<i32>() * 4);
-
-        data_bytes.put_i32(16);
-        data_bytes.put_i32(CANCEL_REQUEST_CODE);
-        data_bytes.put_i32(self.process_id);
-        data_bytes.put_i32(self.secret_key);
-
-        return data_bytes;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
 #[derive(Debug)]
-pub struct GssEncReq {}
+pub struct GssEncReq {
+    message_bytes: BytesMut,
+}
 
 impl GssEncReq {
     pub fn new() -> Self {
-        Self {}
+        let mut message_bytes =
+            BytesMut::with_capacity(mem::size_of::<i32>() + mem::size_of::<i32>());
+
+        message_bytes.put_i32(8);
+        message_bytes.put_i32(GSS_ENC_REQ_CODE);
+
+        Self { message_bytes }
     }
 }
 
 impl StartupMessage for GssEncReq {}
 
 impl Message for GssEncReq {
-    fn new_from_bytes(_bytes: BytesMut) -> Result<Self, Error> {
-        Ok(Self {})
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut data_bytes = BytesMut::with_capacity(mem::size_of::<i32>() + mem::size_of::<i32>());
-
-        data_bytes.put_i32(8);
-        data_bytes.put_i32(GSS_ENC_REQ_CODE);
-
-        return data_bytes;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }
 
@@ -238,15 +259,15 @@ pub enum FrontendMessageType {
     FunctionCall(FunctionCall),
     CopyFail(CopyFail),
     CopyData(CopyData),
-    CopyDone(CopyDone), // empty
-    Flush(Flush),       // empty
+    CopyDone(CopyDone),
+    Flush(Flush),
     Parse(Parse),
-    Sync(Sync),           // empty
-    Terminate(Terminate), // empty
+    Sync(Sync),
+    Terminate(Terminate),
 }
 
 impl FrontendMessageType {
-    pub fn get_bytes(&self) -> BytesMut {
+    pub fn get_bytes(&self) -> &BytesMut {
         match self {
             Self::Query(query) => query.get_bytes(),
             Self::Bind(bind) => bind.get_bytes(),
@@ -343,8 +364,8 @@ impl Message for Terminate {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -366,8 +387,8 @@ impl Message for Sync {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -389,8 +410,8 @@ impl Message for Parse {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -412,8 +433,8 @@ impl Message for Flush {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -435,8 +456,8 @@ impl Message for CopyDone {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -458,8 +479,8 @@ impl Message for CopyData {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -481,8 +502,8 @@ impl Message for CopyFail {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -504,8 +525,8 @@ impl Message for FunctionCall {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -527,8 +548,8 @@ impl Message for Execute {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -550,8 +571,8 @@ impl Message for Describe {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -573,8 +594,8 @@ impl Message for Close {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
@@ -596,44 +617,56 @@ impl Message for Bind {
         Ok(Self { message_bytes })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        self.message_bytes.clone()
+    fn get_bytes(&self) -> &BytesMut {
+        &self.message_bytes
     }
 }
 
 #[derive(Debug)]
 pub struct Query {
+    message_bytes: BytesMut,
     pub query_string: String,
 }
 
 impl Query {
     pub fn new(query_string: String) -> Self {
-        Self { query_string }
+        let mut message_bytes = BytesMut::with_capacity(
+            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>(),
+        );
+
+        let msg_len = (query_string.len() + 1 + mem::size_of::<i32>()) as i32;
+
+        message_bytes.put_u8(b'Q');
+        message_bytes.put_i32(msg_len);
+        message_bytes.put(&query_string.as_bytes()[..]);
+        message_bytes.put_u8(0);
+
+        Self {
+            message_bytes,
+            query_string,
+        }
     }
 }
 
 impl FrontendMessage for Query {}
 
 impl Message for Query {
-    fn new_from_bytes(mut bytes: BytesMut) -> Result<Self, Error> {
-        let _code = bytes.get_u8();
-        let len = bytes.get_i32() as usize;
-        let query_string = String::from_utf8_lossy(&bytes[..len - 5]).to_string();
-        Ok(Self { query_string })
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
+        let mut buffer = Buffer::new(message_bytes);
+
+        let _code = buffer.read_u8()?;
+        let _len = buffer.read_i32()?;
+
+        let query_string = buffer.read_string()?;
+
+        // let query_string = String::from_utf8_lossy(&bytes[..len - 5]).to_string();
+        Ok(Self {
+            message_bytes: buffer.buffer,
+            query_string,
+        })
     }
 
-    fn get_bytes(&self) -> BytesMut {
-        let mut data_bytes = BytesMut::with_capacity(
-            mem::size_of::<u8>() + mem::size_of::<i32>() + mem::size_of::<u8>(),
-        );
-
-        let msg_len = (self.query_string.len() + 1 + mem::size_of::<i32>()) as i32;
-
-        data_bytes.put_u8(b'Q');
-        data_bytes.put_i32(msg_len);
-        data_bytes.put(&self.query_string.as_bytes()[..]);
-        data_bytes.put_u8(0);
-
-        return data_bytes;
+    fn get_bytes(&self) -> &BytesMut {
+        return &self.message_bytes;
     }
 }

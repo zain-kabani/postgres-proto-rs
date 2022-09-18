@@ -28,7 +28,7 @@ async fn main() {
 
     send_backend_message(
         &mut frontend.write_stream,
-        &BackendMessageType::AuthenticationOk,
+        &BackendMessageType::AuthenticationOk(AuthenticationOk::new()),
     )
     .await
     .unwrap();

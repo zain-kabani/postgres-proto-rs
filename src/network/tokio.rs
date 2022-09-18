@@ -29,9 +29,7 @@ where
     let mut bytes_mut = BytesMut::with_capacity(len as usize + mem::size_of::<i32>());
 
     bytes_mut.put_i32(len);
-
     bytes_mut.put_i32(code);
-
     bytes_mut.put_slice(&message_bytes);
 
     trace!(
@@ -49,7 +47,7 @@ pub async fn send_startup_message<S>(
 where
     S: tokio::io::AsyncWrite + std::marker::Unpin,
 {
-    match stream.write(&message.get_bytes()).await {
+    match stream.write(message.get_bytes()).await {
         Ok(_) => Ok(()),
         Err(_) => return Err(Error::SocketIOError),
     }
@@ -76,7 +74,7 @@ pub async fn send_frontend_message<S>(
 where
     S: tokio::io::AsyncWrite + std::marker::Unpin,
 {
-    match stream.write(&message.get_bytes()).await {
+    match stream.write(message.get_bytes()).await {
         Ok(_) => Ok(()),
         Err(_) => return Err(Error::SocketIOError),
     }
@@ -104,7 +102,7 @@ pub async fn send_backend_message<S>(
 where
     S: tokio::io::AsyncWrite + std::marker::Unpin,
 {
-    match stream.write(&message.get_bytes()).await {
+    match stream.write(message.get_bytes()).await {
         Ok(_) => Ok(()),
         Err(_) => return Err(Error::SocketIOError),
     }
