@@ -6,4 +6,5 @@ pub enum Error {
     InvalidProtocol,
     UnsupportedProtocol,
     UnexpectedEof,
+    IOError(String),
 }

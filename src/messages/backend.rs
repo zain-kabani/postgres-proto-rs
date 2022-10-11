@@ -1,7 +1,10 @@
-use bytes::{BufMut, BytesMut};
-use std::mem;
+use bytes::{Buf, BufMut, BytesMut};
+use std::{
+    io::{Cursor, Read},
+    mem,
+};
 
-use crate::messages::{Buffer, Error, Message};
+use crate::messages::{BytesMutReader, Error, Message};
 
 //----------------------------------------------------------------
 // Backend Messages
@@ -417,6 +420,9 @@ impl Message for CopyDone {
 #[derive(Debug)]
 pub struct CommandComplete {
     message_bytes: BytesMut,
+}
+
+pub struct CommandCompleteParams {
     pub command_tag: String,
 }
 
@@ -433,10 +439,18 @@ impl CommandComplete {
         message_bytes.put(&command_tag.as_bytes()[..]);
         message_bytes.put_u8(0);
 
-        Self {
-            message_bytes,
-            command_tag,
-        }
+        Self { message_bytes }
+    }
+
+    pub fn get_params(&self) -> CommandCompleteParams {
+        let mut cursor = Cursor::new(&self.message_bytes);
+
+        let _code = cursor.get_u8();
+        let _len = cursor.get_i32() as usize;
+
+        let command_tag = cursor.read_string().unwrap();
+
+        CommandCompleteParams { command_tag }
     }
 }
 
@@ -444,19 +458,7 @@ impl BackendMessage for CommandComplete {}
 
 impl Message for CommandComplete {
     fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
-        let mut buffer = Buffer::new(message_bytes);
-
-        let _code = buffer.read_u8()?;
-        let _len = buffer.read_i32()? as usize;
-
-        let command_tag = buffer.read_string()?;
-
-        // let command_tag = String::from_utf8_lossy(&message_bytes[..len - 5]).to_string();
-
-        Ok(Self {
-            message_bytes: buffer.buffer,
-            command_tag,
-        })
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> &BytesMut {
@@ -614,6 +616,9 @@ impl Message for EmptyQueryResponse {
 #[derive(Debug)]
 pub struct BackendKeyData {
     message_bytes: BytesMut,
+}
+
+pub struct BackendKeyDataParams {
     pub process_id: i32,
     pub secret_key: i32,
 }
@@ -632,8 +637,18 @@ impl BackendKeyData {
         message_bytes.put_i32(process_id);
         message_bytes.put_i32(secret_key);
 
-        Self {
-            message_bytes,
+        Self { message_bytes }
+    }
+
+    pub fn get_params(&self) -> BackendKeyDataParams {
+        let mut cursor = Cursor::new(&self.message_bytes);
+
+        let _code = cursor.get_u8();
+        let _len = cursor.get_i32();
+        let process_id = cursor.get_i32();
+        let secret_key = cursor.get_i32();
+
+        BackendKeyDataParams {
             process_id,
             secret_key,
         }
@@ -653,18 +668,7 @@ impl Message for BackendKeyData {
             return Err(Error::InvalidBytes);
         }
 
-        let mut buffer = Buffer::new(message_bytes);
-
-        let _code = buffer.read_u8()?;
-        let _len = buffer.read_i32()?;
-        let process_id = buffer.read_i32()?;
-        let secret_key = buffer.read_i32()?;
-
-        Ok(Self {
-            message_bytes: buffer.buffer,
-            process_id,
-            secret_key,
-        })
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> &BytesMut {
@@ -829,6 +833,9 @@ impl Message for PortalSuspended {
 #[derive(Debug)]
 pub struct ReadyForQuery {
     message_bytes: BytesMut,
+}
+
+pub struct ReadyForQueryParams {
     pub tx_status: u8,
 }
 
@@ -841,10 +848,17 @@ impl ReadyForQuery {
         message_bytes.put_i32(5);
         message_bytes.put_u8(tx_status);
 
-        Self {
-            message_bytes,
-            tx_status,
-        }
+        Self { message_bytes }
+    }
+
+    pub fn get_params(&self) -> ReadyForQueryParams {
+        let mut cursor = Cursor::new(&self.message_bytes);
+
+        let _code = cursor.get_u8();
+        let _len = cursor.get_i32();
+        let tx_status = cursor.get_u8(); // TODO: Add validation
+
+        ReadyForQueryParams { tx_status }
     }
 }
 
@@ -858,15 +872,7 @@ impl Message for ReadyForQuery {
             return Err(Error::InvalidBytes);
         }
 
-        let mut buffer = Buffer::new(message_bytes);
-
-        let _code = buffer.read_u8()?;
-        let _len = buffer.read_i32()?;
-        let tx_status = buffer.read_u8()?; // TODO: Add validation
-        Ok(Self {
-            message_bytes: buffer.buffer,
-            tx_status,
-        })
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> &BytesMut {
@@ -967,6 +973,9 @@ impl Message for AuthenticationCleartextPassword {
 #[derive(Debug)]
 pub struct AuthenticationMD5Password {
     message_bytes: BytesMut,
+}
+
+pub struct AuthenticationMD5PasswordParams {
     pub salt: [u8; 4],
 }
 
@@ -981,10 +990,20 @@ impl AuthenticationMD5Password {
         message_bytes.put_i32(AUTH_CODE_MD5_PASSWORD);
         message_bytes.put_slice(&salt);
 
-        Self {
-            message_bytes,
-            salt,
-        }
+        Self { message_bytes }
+    }
+
+    pub fn get_params(&self) -> AuthenticationMD5PasswordParams {
+        let mut cursor = Cursor::new(&self.message_bytes);
+
+        let _code = cursor.get_u8();
+        let _len = cursor.get_i32();
+        let _type = cursor.get_i32();
+
+        let mut salt = [0; 4];
+        cursor.read_exact(&mut salt).unwrap();
+
+        AuthenticationMD5PasswordParams { salt }
     }
 }
 
@@ -998,19 +1017,7 @@ impl Message for AuthenticationMD5Password {
             return Err(Error::InvalidBytes);
         }
 
-        let mut buffer = Buffer::new(message_bytes);
-
-        let _code = buffer.read_u8()?;
-        let _len = buffer.read_i32()?;
-        let _type = buffer.read_i32()?;
-
-        // These unwraps are safe because of validation above
-        let salt: [u8; 4] = buffer.read_by_size(4)?.try_into().unwrap();
-
-        Ok(Self {
-            message_bytes: buffer.buffer,
-            salt,
-        })
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> &BytesMut {

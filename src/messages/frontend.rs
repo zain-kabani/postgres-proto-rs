@@ -1,7 +1,7 @@
-use bytes::{BufMut, BytesMut};
-use std::{collections::HashMap, mem};
+use bytes::{Buf, BufMut, BytesMut};
+use std::{collections::HashMap, io::Cursor, mem};
 
-use crate::messages::{Buffer, Error, Message};
+use crate::messages::{BytesMutReader, Error, Message};
 
 //----------------------------------------------------------------
 // Startup Messages
@@ -65,6 +65,9 @@ pub trait StartupMessage: Message {}
 #[derive(Debug)]
 pub struct StartupParameters {
     message_bytes: BytesMut,
+}
+
+pub struct StartupParametersParams {
     pub parameters: HashMap<String, String>,
 }
 
@@ -91,27 +94,19 @@ impl StartupParameters {
         message_bytes.put_i32(data_bytes.len() as i32 + mem::size_of::<i32>() as i32);
         message_bytes.put(data_bytes);
 
-        Ok(Self {
-            message_bytes,
-            parameters: parameters,
-        })
+        Ok(Self { message_bytes })
     }
-}
 
-impl StartupMessage for StartupParameters {}
+    pub fn get_params(&self) -> StartupParametersParams {
+        let mut cursor = Cursor::new(&self.message_bytes);
 
-impl Message for StartupParameters {
-    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
-        let mut buffer = Buffer::new(message_bytes);
-
-        let _len = buffer.read_i32();
-
-        let _protocol_version = buffer.read_i32();
+        let _len = cursor.get_i32();
+        let _protocol_version = cursor.get_i32();
 
         let mut parameters = HashMap::new();
 
         loop {
-            let key = match buffer.read_string() {
+            let key = match cursor.read_string() {
                 Ok(s) => {
                     if s.len() == 0 {
                         break;
@@ -122,14 +117,21 @@ impl Message for StartupParameters {
                 Err(_) => break, // TODO: handle error
             };
 
-            let value = buffer.read_string().unwrap();
+            let value = cursor.read_string().unwrap();
 
             parameters.insert(key, value);
         }
 
+        StartupParametersParams { parameters }
+    }
+}
+
+impl StartupMessage for StartupParameters {}
+
+impl Message for StartupParameters {
+    fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
         Ok(Self {
-            message_bytes: buffer.buffer,
-            parameters: parameters,
+            message_bytes: message_bytes,
         })
     }
 
@@ -170,6 +172,9 @@ impl Message for SSLRequest {
 #[derive(Debug)]
 pub struct CancelRequest {
     message_bytes: BytesMut,
+}
+
+pub struct CancelRequestParams {
     pub process_id: i32,
     pub secret_key: i32,
 }
@@ -183,8 +188,18 @@ impl CancelRequest {
         message_bytes.put_i32(process_id);
         message_bytes.put_i32(secret_key);
 
-        Self {
-            message_bytes,
+        Self { message_bytes }
+    }
+
+    pub fn get_params(&self) -> CancelRequestParams {
+        let mut cursor = Cursor::new(&self.message_bytes);
+
+        let _len = cursor.get_i32();
+        let _code = cursor.get_i32();
+        let process_id = cursor.get_i32();
+        let secret_key = cursor.get_i32();
+
+        CancelRequestParams {
             process_id,
             secret_key,
         }
@@ -199,17 +214,8 @@ impl Message for CancelRequest {
             return Err(Error::InvalidBytes);
         }
 
-        let mut buffer = Buffer::new(message_bytes);
-
-        let _len = buffer.read_i32()?;
-        let _code = buffer.read_i32()?;
-        let process_id = buffer.read_i32()?;
-        let secret_key = buffer.read_i32()?;
-
         Ok(Self {
-            message_bytes: buffer.buffer,
-            process_id,
-            secret_key,
+            message_bytes: message_bytes,
         })
     }
 
@@ -625,6 +631,9 @@ impl Message for Bind {
 #[derive(Debug)]
 pub struct Query {
     message_bytes: BytesMut,
+}
+
+pub struct QueryParams {
     pub query_string: String,
 }
 
@@ -641,9 +650,19 @@ impl Query {
         message_bytes.put(&query_string.as_bytes()[..]);
         message_bytes.put_u8(0);
 
-        Self {
-            message_bytes,
-            query_string,
+        Self { message_bytes }
+    }
+
+    pub fn get_params(&self) -> QueryParams {
+        let mut cursor = Cursor::new(&self.message_bytes);
+
+        let _code = cursor.get_u8();
+        let _len = cursor.get_i32();
+
+        let query_string = cursor.read_string().unwrap();
+
+        QueryParams {
+            query_string: query_string,
         }
     }
 }
@@ -652,18 +671,7 @@ impl FrontendMessage for Query {}
 
 impl Message for Query {
     fn new_from_bytes(message_bytes: BytesMut) -> Result<Self, Error> {
-        let mut buffer = Buffer::new(message_bytes);
-
-        let _code = buffer.read_u8()?;
-        let _len = buffer.read_i32()?;
-
-        let query_string = buffer.read_string()?;
-
-        // let query_string = String::from_utf8_lossy(&bytes[..len - 5]).to_string();
-        Ok(Self {
-            message_bytes: buffer.buffer,
-            query_string,
-        })
+        Ok(Self { message_bytes })
     }
 
     fn get_bytes(&self) -> &BytesMut {

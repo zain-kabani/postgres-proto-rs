@@ -59,7 +59,10 @@ async fn main() {
                 .unwrap();
 
             match message {
-                BackendMessageType::ReadyForQuery(_) => break,
+                BackendMessageType::ReadyForQuery(ready_for_query) => {
+                    println!("tx_status: {}", ready_for_query.get_params().tx_status);
+                    break;
+                },
                 _ => {}
             };
         }
