@@ -45,6 +45,13 @@ async fn main() {
             .await
             .unwrap();
 
+        match &message {
+            FrontendMessageType::Query(query) => {
+                println!("query: {}", query.get_params().query_string);
+            }
+            _ => {}
+        }
+
         send_frontend_message(&mut backend.write_stream, &message)
             .await
             .unwrap();
@@ -53,7 +60,7 @@ async fn main() {
             let message = read_backend_message(&mut backend.read_stream)
                 .await
                 .unwrap();
-            println!("message: {:?}", message);
+
             send_backend_message(&mut frontend.write_stream, &message)
                 .await
                 .unwrap();
@@ -62,7 +69,7 @@ async fn main() {
                 BackendMessageType::ReadyForQuery(ready_for_query) => {
                     println!("tx_status: {}", ready_for_query.get_params().tx_status);
                     break;
-                },
+                }
                 _ => {}
             };
         }
